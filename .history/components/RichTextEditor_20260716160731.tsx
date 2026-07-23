@@ -1,0 +1,57 @@
+import { View, StyleSheet,Text } from 'react-native'
+import React from 'react'
+import { actions, RichToolbar } from 'react-native-pell-rich-editor'
+ import { theme } from '@/constants/theme'
+interface RichTextEditorProps {
+  editorRef: React.MutableRefObject<any>;
+  onChange: (body: string) => void;
+}
+
+const RichTextEditor: React.FC<RichTextEditorProps> = ({
+  editorRef,
+  onChange
+}) => {
+  return (
+    <View style={{ minHeight: 285 }}>
+      <RichToolbar
+        actions={[
+          actions.setStrikethrough,
+          actions.removeFormat,
+          actions.setBold,
+          actions.setItalic,
+          actions.insertOrderedList,
+          actions.blockquote,
+          actions.alignLeft,
+          actions.alignRight,
+          actions.alignRight,
+          actions.code,
+          actions.line,
+          actions.heading1,
+          actions.heading4
+        ]}
+        iconMap={{
+          [actions.heading1]:({tintColor})=><Text style ={{color:tintColor}}>H1</Text>,
+          [actions.heading4]:({tintColor})=><Text style ={{color:tintColor}}>H4</Text>
+        }}
+        style={styles.richBar}
+        flatContainerStyle={styles.listStyle}
+        editor={editorRef}
+        disabled={false}
+      />
+    </View>
+  )
+}
+
+export default RichTextEditor
+
+const styles = StyleSheet.create({
+  richBar: {
+    borderTopRightRadius: theme.radius.xl,
+    borderTopLeftRadius: theme.radius.xl,
+    backgroundColor:theme.colors.gray,
+  },
+  listStyle: {
+    paddingHorizontal: 8,
+    gap: 3,
+  },
+})

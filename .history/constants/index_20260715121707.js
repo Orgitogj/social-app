@@ -1,0 +1,2 @@
+export const supabaseUrl='https://dngiurepmnnytmbvyhpf.supabase.co'
+export const supabaseAnonKey='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRuZ2l1cmVwbW5ueXRtYnZ5aHBmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxMDM2ODMsImV4cCI6MjA5OTY3OTY4M30.aAaJSDqr8JenX6x3NgmCCqsX-QhwS8Ds3ydW3KFNeEI'

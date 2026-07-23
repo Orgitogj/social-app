@@ -1,0 +1,3 @@
+export const createOrUpdatePost =async (post)=>{
+  
+}
