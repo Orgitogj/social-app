@@ -137,17 +137,9 @@ const getPosts = async () => {
   isFetchingRef.current = true;
   setLoading(true);
 
-  const startTime = Date.now();
-  const minDuration = 600;
-
   const offset = postsRef.current.length;
   let res = await fetchPosts(PAGE_SIZE, undefined, offset);
-
-  const elapsed = Date.now() - startTime;
-  const remaining = minDuration - elapsed;
-
-  const finish = () => {
-    if (res.success && res.data) {
+  if (res.success && res.data) {
       if (res.data.length < PAGE_SIZE) {
         hasMoreRef.current = false;
         setHasMore(false);
@@ -155,24 +147,15 @@ const getPosts = async () => {
       const updated = [...postsRef.current, ...res.data];
       postsRef.current = updated;
       setPosts(updated);
-    } else {
-      hasMoreRef.current = false;
-      setHasMore(false);
-    }
-    setLoading(false);
-    isFetchingRef.current = false;
-  };
-
-  if (remaining > 0) {
-    setTimeout(finish, remaining);
-  } else {
-    finish();
   }
+  setLoading(false);
+  isFetchingRef.current = false;
+  if (!res.success) setHasMore(hasMoreRef.current);
 }
 
   const getNotificationCount = async () => {
     if (!user?.id) return;
-    let res = await fetchNotifications(user.id);
+    let res = await fetchNotifications(user.id, 1, 1);
     if (res.success) setNotificationCount(res.data?.length || 0);
   }
 
@@ -205,6 +188,7 @@ const getPosts = async () => {
       .subscribe();
 
     getNotificationCount();
+    getPosts();
 
     return () => {
       supabase.removeChannel(postChannel);
@@ -254,7 +238,7 @@ const getPosts = async () => {
         </View>
 
         <FlatList
-          data={posts.filter(post => post.userId !== user?.id)}
+          data={posts}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listStyle}
           keyExtractor={item => item.id.toString()}

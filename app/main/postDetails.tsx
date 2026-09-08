@@ -10,6 +10,7 @@ import Loading from '@/components/Loading';
 import Input from '@/components/Input';
 import Icon from '@/assets/icons';
 import CommentItem from '@/components/CommentItem';
+import BackButton from '@/components/BackButton';
 import { supabase } from '@/lib/supabase';
 import { getUserData } from '@/services/userService';
 import {createNotification} from '../../services/notificationsService'
@@ -32,7 +33,7 @@ interface PostType {
 
 const PostDetails = () => {
 
-  const { postId,comentId} = useLocalSearchParams();
+  const { postId, commentId } = useLocalSearchParams();
   const { user } = useAuth();
   const router = useRouter();
   const [post, setPost] = useState<PostType | null>(null);
@@ -48,6 +49,7 @@ const PostDetails = () => {
       newComment.user = res.success ? res.data : {};
       setPost(prevPost => {
         if (!prevPost) return prevPost;
+        if ((prevPost.comments || []).some(c => c.id === newComment.id)) return prevPost;
         return {
           ...prevPost,
           comments: [newComment, ...(prevPost.comments || [])]
@@ -144,10 +146,15 @@ const PostDetails = () => {
           senderId:user.id,
           receiverId:post?.userId,
           title:'Commented on your post',
-          data:JSON.stringify({postId:post?.id,comentId:res?.data.id})
+          data:JSON.stringify({postId:post?.id,commentId:res?.data.id})
         }
 
         createNotification(notify);
+      }
+      const created = res.data;
+      if (created) {
+        const profile = user ? { id: user.id, name: user.name, image: user.image } : {};
+        setPost(prev => prev ? { ...prev, comments: [{ ...created, user: profile }, ...(prev.comments || [])] } : prev);
       }
       inputRef?.current?.clear();
       commentRef.current = "";
@@ -166,8 +173,7 @@ const PostDetails = () => {
   }
 
   const onEditPost = async (item: any) => {
-    router.back();
-      router.push({pathname:'/main/newPost',params:{...item}})
+    router.push({ pathname: '/main/newPost', params: { id: item.id } })
   }
 
   if (startLoading) {
@@ -181,7 +187,7 @@ const PostDetails = () => {
   if (!post) {
     return (
       <View style={[styles.center, { justifyContent: 'flex-start', marginTop: 100 }]}>
-        <Text style={styles.notFound}></Text>
+        <Text style={styles.notFound}>Post not found</Text>
       </View>
     )
   }
@@ -192,6 +198,7 @@ const PostDetails = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
+      <BackButton />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.list}>
         <PostCard
           item={{ ...post, comments: [{ count: post?.comments?.length }] }}
@@ -233,7 +240,7 @@ const PostDetails = () => {
                   item={comment}
                   canDelete={user?.id === comment.userId || user?.id === post.userId}
                   onDelete={onDeleteComment}
-                  highlight={comment?.id === comentId}
+                  highlight={comment?.id === commentId}
                 />
             )
           }
