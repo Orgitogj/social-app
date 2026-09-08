@@ -22,7 +22,7 @@ import Icon from '@/assets/icons'
 import Button from '@/components/Button'
 import * as ImagePicker from 'expo-image-picker'
 import { getSupabaseFileUrl } from '@/services/imageService'
-import { Video, ResizeMode } from 'expo-av'
+import { VideoView, useVideoPlayer } from 'expo-video'
 import { createOrUpdatePost } from "../../services/postService"
 
 const NewPost = () => {
@@ -34,6 +34,7 @@ const NewPost = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [file, setFile] = useState<any>(null);
+  const localVideoPlayer = useVideoPlayer(typeof file === 'object' && file ? file.uri : '', player => { player.loop = true; });
 
   useEffect(() => {
     if (post && post.id) {
@@ -167,13 +168,7 @@ const NewPost = () => {
                 <View style={styles.file}>
                   {
                     getFileType(file) === 'video' ? (
-                      <Video
-                        style={{ flex: 1 }}
-                        source={{ uri: getFileUri(file) }}
-                        useNativeControls
-                        resizeMode={ResizeMode.COVER}
-                        isLooping
-                      />
+                      <VideoView style={{ flex: 1 }} player={localVideoPlayer} nativeControls contentFit="cover" />
                     ) : (
                       <Image
                         source={{ uri: getFileUri(file) }}

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Dimensions, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import moment from 'moment';
 import RenderHtml from 'react-native-render-html';
 import { theme } from '@/constants/theme';
@@ -8,7 +8,7 @@ import Avatar from './Avatar';
 import Icon from '@/assets/icons';
 import { Image } from 'expo-image';
 import { downloadFile, getSupabaseFileUrl } from '@/services/imageService';
-import { Video, ResizeMode } from 'expo-av';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import { createPostLike, removePostLike } from '../services/postService'
 import { createNotification } from '@/services/notificationsService';
 
@@ -40,6 +40,11 @@ const tagsStyles = {
   h4: {
     color: theme.colors.dark
   }
+};
+
+const VideoPreview = ({ uri }: { uri: string }) => {
+  const player = useVideoPlayer(uri, current => { current.loop = true; });
+  return <VideoView style={[styles.postMedia, { height: hp(30) }]} player={player} nativeControls contentFit="cover" />;
 };
 
 const PostCard = ({
@@ -109,7 +114,6 @@ const PostCard = ({
       Alert.alert('Post', 'Like was not added');
       setLikes(likes);
     } else if (item?.userId && item?.userId !== currentUser?.id) {
-      console.log('DEBUG like notif:', { senderId: currentUser?.id, receiverId: item?.userId });
       let notify = {
         senderId: currentUser?.id,
         receiverId: item?.userId,
@@ -117,9 +121,7 @@ const PostCard = ({
         data: JSON.stringify({ postId: item?.id }),
       }
       let notifRes = await createNotification(notify);
-      console.log('DEBUG notif result:', notifRes);
     } else {
-      console.log('DEBUG: kushti s\'u plotesua', { itemUserId: item?.userId, currentUserId: currentUser?.id });
     }
   }
 }
@@ -141,10 +143,9 @@ const PostCard = ({
   }
 
   const handlePostDelete = () => {
-    Alert.alert('Confirm', 'Are you sure you want to delete this comment?', [
+    Alert.alert('Confirm', 'Are you sure you want to delete this post?', [
       {
         text: 'Cancel',
-        onPress: () => console.log('Modal cancelled'),
         style: 'cancel',
       },
       {
@@ -220,7 +221,7 @@ const PostCard = ({
         <View style={styles.postBody}>
           {item?.body && (
             <RenderHtml
-              contentWidth={wp(100)}
+              contentWidth={Dimensions.get('window').width - 40}
               source={{ html: item?.body }}
               tagsStyles={tagsStyles}
             />
@@ -233,19 +234,11 @@ const PostCard = ({
             transition={100}
             style={styles.postMedia}
             contentFit="cover"
-            onError={(e) => console.log('Image load error:', e)}
           />
         )}
 
         {item?.file && item?.file.includes('postVideos') && (
-          <Video
-            style={[styles.postMedia, { height: hp(30) }]}
-            source={{ uri: getSupabaseFileUrl(item?.file)?.uri || '' }}
-            useNativeControls
-            resizeMode={ResizeMode.COVER}
-            isLooping
-            onError={(e) => console.log('Video load error:', e)}
-          />
+          <VideoPreview uri={getSupabaseFileUrl(item?.file)?.uri || ''} />
         )}
       </View>
 
