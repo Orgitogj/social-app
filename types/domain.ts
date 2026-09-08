@@ -1,0 +1,12 @@
+export type Profile = { id: string; name: string; username?: string | null; image?: string | null; bio?: string | null; location?: string | null; is_private?: boolean; email?: string | null; phoneNumber?: string | null; address?: string | null };
+export type PostMedia = { id: string; postId: string; userId: string; type: 'image' | 'video'; path: string; mime_type: string; width: number; height: number; duration?: number | null; size_bytes: number; thumbnail_path?: string | null; sort_order: number };
+export type Post = { id: string; userId: string; body: string; visibility: 'public' | 'followers' | 'private'; status: 'draft' | 'published'; created_at: string; updated_at: string; user?: Profile; media?: PostMedia[]; like_count?: number; comment_count?: number; liked?: boolean; bookmarked?: boolean };
+export type Like = { id: string; postId: string; userId: string; reaction: string; created_at: string };
+export type Comment = { id: string; postId: string; userId: string; parentId?: string | null; text: string; created_at: string; updated_at?: string; user?: Profile; like_count?: number; liked?: boolean };
+export type Notification = { id: string; senderId?: string | null; receiverId: string; type: string; title: string; data: Record<string, unknown>; dedupe_key: string; read_at?: string | null; created_at: string; sender?: Profile };
+export type Follow = { id: string; follower_id: string; following_id: string; status: 'pending' | 'accepted'; created_at: string; updated_at: string };
+export type Bookmark = { id: string; userId: string; postId: string; created_at: string };
+export type Block = { id: string; blocker_id: string; blocked_id: string; created_at: string };
+export type Mute = { id: string; userId: string; muted_id: string; created_at: string };
+export type Conversation = { id: string; user_low: string; user_high: string; created_at: string; updated_at: string; other_user?: Profile; latest_message?: Message; unread_count?: number };
+export type Message = { id: string; conversation_id: string; userId: string; text: string; media_path?: string | null; mime_type?: string | null; created_at: string };

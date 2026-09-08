@@ -1,30 +1,23 @@
-import { AppState, Platform } from 'react-native'
-import 'react-native-url-polyfill/auto'
-import AsyncStorage from '@react-native-async-storage/async-storage'
-import { createClient, processLock } from '@supabase/supabase-js'
-import {supabaseUrl,supabaseAnonKey} from '../constants'
+import 'react-native-url-polyfill/auto';
+import { Platform } from 'react-native';
+import { createClient, processLock, type SupabaseClient } from '@supabase/supabase-js';
+import { clientConfig } from './config';
+import { sessionStorage } from './sessionStorage';
+import type { Database } from '@/types/database';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    ...(Platform.OS !== 'web' ? { storage: AsyncStorage } : {}),
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false,
-    lock: processLock,
-  },
-})
+let client: SupabaseClient<Database> | undefined;
 
-// Tells Supabase Auth to continuously refresh the session automatically
-// if the app is in the foreground. When this is added, you will continue
-// to receive `onAuthStateChange` events with the `TOKEN_REFRESHED` or
-// `SIGNED_OUT` event if the user's session is terminated. This should
-// only be registered once.
-if (Platform.OS !== 'web') {
-  AppState.addEventListener('change', (state) => {
-    if (state === 'active') {
-      supabase.auth.startAutoRefresh()
-    } else {
-      supabase.auth.stopAutoRefresh()
-    }
-  })
+export function getSupabase(): SupabaseClient<Database> {
+  if (!clientConfig.valid) throw new Error(clientConfig.message);
+  if (!client) client = createClient<Database>(clientConfig.url, clientConfig.anonKey, {
+    auth: { ...(Platform.OS !== 'web' ? { storage: sessionStorage } : {}), autoRefreshToken: true, persistSession: true, detectSessionInUrl: false, flowType: 'pkce', lock: processLock },
+  });
+  return client;
 }
+
+export const supabase = new Proxy({} as SupabaseClient<Database>, {
+  get(_target, property) {
+    const value = Reflect.get(getSupabase(), property);
+    return typeof value === 'function' ? value.bind(getSupabase()) : value;
+  },
+});
