@@ -49,7 +49,6 @@ const Search = () => {
       const stored = await AsyncStorage.getItem(RECENTS_KEY)
       if (stored) setRecents(JSON.parse(stored))
     } catch (e) {
-      console.log('loadRecents error:', e)
     }
   }
 
@@ -58,7 +57,6 @@ const Search = () => {
     try {
       await AsyncStorage.setItem(RECENTS_KEY, JSON.stringify(updated))
     } catch (e) {
-      console.log('saveRecents error:', e)
     }
   }
 

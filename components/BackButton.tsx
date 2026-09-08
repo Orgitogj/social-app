@@ -12,6 +12,9 @@ const BackButton = ({ size = 26 }: BackButtonProps) => {
   return (
     <Pressable 
       onPress={() => router.back()} 
+      accessibilityRole="button"
+      accessibilityLabel="Go back"
+      hitSlop={10}
       style={styles.button}
     >
       <Icon 
