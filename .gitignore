@@ -3,6 +3,13 @@
 # dependencies
 node_modules/
 .history/
+coverage/
+supabase/.temp/
+supabase/.branches/
+.env
+.env.*
+!.env.example
+maestro-results/
 
 # Expo
 .expo/
