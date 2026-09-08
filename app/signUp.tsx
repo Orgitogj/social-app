@@ -11,6 +11,7 @@ import Icon from '@/assets/icons'
 import  {useRef} from 'react'
 import Button from '@/components/Button'
 import { supabase } from '../lib/supabase'
+import { signupSchema } from '@/helpers/validation'
 
 const SignUp = () => {
   const router = useRouter();
@@ -21,14 +22,13 @@ const SignUp = () => {
 
 
   const onSubmit= async()=>{
-    if (!emailRef.current|| !passwordRef.current){
+    const parsed = signupSchema.safeParse({ name: nameRef.current, email: emailRef.current, password: passwordRef.current });
+    if (!parsed.success){
       Alert.alert('SignUp',"Please fill all the fields!");
       return;
     }
 
-    let name =nameRef.current.trim();
-    let email =emailRef.current.trim();
-    let password=passwordRef.current.trim();
+    let { name, email, password } = parsed.data;
     setLoading(true);
     const {data:{session},error}=await supabase.auth.signUp({
       email,
@@ -45,6 +45,8 @@ const SignUp = () => {
 
     if (error){
       Alert.alert('SignUp',error.message);
+    } else if (!session) {
+      Alert.alert('SignUp', 'Check your email to confirm your account.');
     }
   }
   return (
