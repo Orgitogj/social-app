@@ -1,4 +1,0 @@
-export getUserImageSrc=imagePath=>{
-
-  if(imagePath)
-}
