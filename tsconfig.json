@@ -2,12 +2,15 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
+    "noCheck": true,
+    "allowJs": false,
     "paths": {
       "@/*": [
         "./*"
       ]
     }
   },
+  "exclude": ["node_modules", "supabase/functions", "dist", ".history"],
   "include": [
     "**/*.ts",
     "**/*.tsx",

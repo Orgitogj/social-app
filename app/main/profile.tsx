@@ -184,7 +184,6 @@ const Profile = () => {
     Alert.alert('Confirm', 'Are you sure you want to logout?', [
       {
         text: 'Cancel',
-        onPress: () => console.log('Modal cancelled'),
         style: 'cancel',
       },
       {
@@ -292,7 +291,7 @@ const UserHeader = ({ user, router, handleLogout, isOwnProfile }: UserHeaderProp
 
           <View style={styles.userInfo}>
             <Text style={styles.userName}>{user?.name}</Text>
-            <Text style={styles.infoText}>New York</Text>
+            <Text style={styles.infoText}>{profile?.location || 'Location not set'}</Text>
           </View>
 
           <View style={styles.info}>

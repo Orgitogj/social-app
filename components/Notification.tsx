@@ -13,8 +13,14 @@ type NotificationProps = {
 const Notification = ({ item, router }: NotificationProps) => {
 
   const handleClick = () => {
-    let { postId, comentId } = JSON.parse(item?.data);
-    router.push({ pathname: '/main/postDetails', params: { postId, comentId } })
+    let payload: { postId?: string; commentId?: string } = {};
+    try {
+      const parsed = typeof item?.data === 'string' ? JSON.parse(item.data) : item?.data;
+      payload = { postId: parsed?.postId, commentId: parsed?.commentId ?? parsed?.comentId };
+    } catch {
+      return;
+    }
+    if (payload.postId) router.push({ pathname: '/main/postDetails', params: payload })
   }
 
   const createdAt = moment(item?.created_at).format('MMM D');

@@ -1,5 +1,5 @@
-import { Stack, useRouter } from "expo-router";
-import React, { useEffect } from 'react'
+import { Stack, useRouter, useSegments } from "expo-router";
+import React, { useEffect, useRef, useState } from 'react'
 import {AuthProvider, useAuth} from '../contexts/AuthContexts'
 import { supabase } from "../lib/supabase";
 import type { User } from '@supabase/supabase-js';
@@ -15,38 +15,49 @@ const _layout=()=>{
 }
 
 const MainLayout = () => {
-  const { setAuth,setUserData } = useAuth();
+  const { authUser, setAuth,setUserData } = useAuth();
+  const [ready, setReady] = useState(false);
+  const requestId = useRef(0);
   const router=useRouter();
+  const segments = useSegments();
 
   useEffect(() => {
-    supabase.auth.onAuthStateChange((_event, session) => {
-    console.log('session user:',session?.user?.id);
-
+    let active = true;
+    const update = async (session: User | null) => {
+    const currentRequest = ++requestId.current;
     if (session){
-       setAuth(session?.user)
-       updateUserData(session?.user);
-       router.replace('/main/home')
-
+       setAuth(session)
+       await updateUserData(session, currentRequest);
     }
     else{
        setAuth(null)
-       router.replace('/welcome')
+       setUserData(null)
     }
-    })
-  },[])
+    if (active && currentRequest === requestId.current) setReady(true);
+    };
+    supabase.auth.getSession().then(({ data }) => update(data.session?.user ?? null));
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'INITIAL_SESSION' || event === 'PASSWORD_RECOVERY' || event === 'USER_UPDATED') update(session?.user ?? null);
+    });
+    return () => { active = false; listener.subscription.unsubscribe(); };
+  },[router,setAuth,setUserData])
 
-const updateUserData = async (user: User) => {
+  useEffect(() => {
+    if (!ready) return;
+    const inApp = segments[0] === 'main';
+    const hasSession = !!authUser;
+    if (inApp && !hasSession) router.replace('/welcome');
+    if (!inApp && hasSession && segments[0] !== 'main') router.replace('/main/home');
+  }, [ready, segments, router, authUser]);
+
+const updateUserData = async (user: User, currentRequest: number) => {
   let res = await getUserData(user.id);
 
-  console.log("User data response:", res);
-
-  if (res.success) {
-    console.log("User data:", res.data);
+  if (res.success && requestId.current === currentRequest) {
     setUserData(res.data);
-  } else {
-    console.log("Error getting user data:", res.msg);
   }
 };
+  if (!ready) return null;
   return (
     <Stack
       screenOptions={{
@@ -54,7 +65,7 @@ const updateUserData = async (user: User) => {
       }}
     >
       <Stack.Screen 
-      name="(main)/postDetails"
+      name="main/postDetails"
       options={{
         presentation:'modal'
       }}

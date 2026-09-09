@@ -9,15 +9,15 @@ interface InputProps extends TextInputProps {
   inputRef?: React.RefObject<TextInput | null>
 }
 
-const Input = (props: InputProps) => {
+const Input = ({ icon, containerStyle, inputRef, style, ...inputProps }: InputProps) => {
   return (
-    <View style={[styles.container, props.containerStyle && props.containerStyle]}>
-      {props.icon && props.icon}
+    <View style={[styles.container, containerStyle]}>
+      {icon}
       <TextInput
-        style={{ flex: 1 }}
+        style={[styles.input, style]}
         placeholderTextColor={theme.colors.textLight}
-        ref={props.inputRef && props.inputRef}
-        {...props}
+        ref={inputRef}
+        {...inputProps}
       />
     </View>
   )
@@ -38,4 +38,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     gap: 12,
   },
+  input: { flex: 1 },
 })

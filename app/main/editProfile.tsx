@@ -98,7 +98,6 @@ const EditProfile = () => {
         Alert.alert('Profile', res.msg || 'Failed to update profile. Please try again.')
       }
     } catch (error) {
-      console.log('Update profile error:', error)
       Alert.alert('Profile', 'Something went wrong while updating your profile.')
     } finally {
       setLoading(false)

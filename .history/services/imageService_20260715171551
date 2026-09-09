@@ -1,6 +1,0 @@
-export getUserImageSrc=imagePath=>{
-
-  if(imagePath)
-    return{uri:imagePath}
-  
-}

@@ -13,6 +13,7 @@ import Icon from '@/assets/icons'
 import  {useRef} from 'react'
 import Button from '@/components/Button'
 import { supabase } from '@/lib/supabase'
+import { loginSchema } from '@/helpers/validation'
 const Login = () => {
   const router = useRouter();
   const emailRef=useRef("");
@@ -21,13 +22,14 @@ const Login = () => {
 
 
   const onSubmit= async()=>{
-    if (!emailRef.current|| !passwordRef.current){
+    const parsed = loginSchema.safeParse({ email: emailRef.current, password: passwordRef.current });
+    if (!parsed.success){
       Alert.alert('Login',"Please fill all the fields!");
       return;
     }
  
-    let email =emailRef.current.trim();
-    let password=passwordRef.current.trim();
+    let email = parsed.data.email;
+    let password = parsed.data.password;
 
 
     setLoading(true);
@@ -38,7 +40,6 @@ const Login = () => {
     });
 
     setLoading(false);
-    console.log('error',error);
     if (error){
       Alert.alert('Login',error.message);
     }
@@ -71,7 +72,7 @@ const Login = () => {
           secureTextEntry
           onChangeText={value=>{passwordRef.current=value}}/>
 
-          <Text style={styles.forgotPassword}>Forgot password?</Text>
+          <Pressable onPress={() => router.push('/forgotPassword')} accessibilityRole="button"><Text style={styles.forgotPassword}>Forgot password?</Text></Pressable>
 
          <Button title={'Login'} loading={loading } onPress={onSubmit} /> 
         </View>

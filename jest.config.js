@@ -1,0 +1,1 @@
+module.exports = { preset: 'jest-expo', testMatch: ['**/__tests__/**/*.test.[jt]s?(x)'], collectCoverageFrom: ['helpers/**/*.{ts,tsx}', 'services/**/*.{ts,tsx}', 'contexts/**/*.{ts,tsx}'], transformIgnorePatterns: ['node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@supabase|xss|zod))'] };

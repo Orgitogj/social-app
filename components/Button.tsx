@@ -11,6 +11,7 @@ interface ButtonProps {
   onPress?: () => void;
   loading?: boolean;
   hasShadow?: boolean;
+  accessibilityLabel?: string;
 }
 
 const Button = ({
@@ -19,7 +20,8 @@ const Button = ({
   title = '',
   onPress = () => {},
   loading = false,
-  hasShadow = true
+  hasShadow = true,
+  accessibilityLabel,
 }: ButtonProps) => {
 
   const shadowStyle = {
@@ -46,6 +48,9 @@ const Button = ({
   return (
   <Pressable 
     onPress={onPress}
+    disabled={loading}
+    accessibilityRole="button"
+    accessibilityLabel={accessibilityLabel || title}
     style={[styles.button, buttonStyle, hasShadow && shadowStyle]}
   >
    <Text style={[styles.text, textStyle]}>

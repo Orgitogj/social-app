@@ -34,7 +34,6 @@ const CommentItem = ({ item, canDelete = false, onDelete = () => {},highlight=fa
     Alert.alert('Confirm', 'Are you sure you want to delete this comment?', [
       {
         text: 'Cancel',
-        onPress: () => console.log('Modal cancelled'),
         style: 'cancel',
       },
       {
