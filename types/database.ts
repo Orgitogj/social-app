@@ -173,18 +173,21 @@ export type Database = {
         Row: {
           conversation_id: string
           created_at: string
+          last_delivered_at: string | null
           last_read_at: string | null
           userId: string
         }
         Insert: {
           conversation_id: string
           created_at?: string
+          last_delivered_at?: string | null
           last_read_at?: string | null
           userId: string
         }
         Update: {
           conversation_id?: string
           created_at?: string
+          last_delivered_at?: string | null
           last_read_at?: string | null
           userId?: string
         }
@@ -352,29 +355,44 @@ export type Database = {
       }
       messages: {
         Row: {
+          client_id: string | null
           conversation_id: string
           created_at: string
+          deleted_at: string | null
+          deleted_by_sender: boolean
           id: string
           media_path: string | null
+          message_type: string
           mime_type: string | null
+          reply_to_message_id: string | null
           text: string
           userId: string
         }
         Insert: {
+          client_id?: string | null
           conversation_id: string
           created_at?: string
+          deleted_at?: string | null
+          deleted_by_sender?: boolean
           id?: string
           media_path?: string | null
+          message_type?: string
           mime_type?: string | null
+          reply_to_message_id?: string | null
           text?: string
           userId: string
         }
         Update: {
+          client_id?: string | null
           conversation_id?: string
           created_at?: string
+          deleted_at?: string | null
+          deleted_by_sender?: boolean
           id?: string
           media_path?: string | null
+          message_type?: string
           mime_type?: string | null
+          reply_to_message_id?: string | null
           text?: string
           userId?: string
         }
@@ -388,6 +406,82 @@ export type Database = {
           },
           {
             foreignKeyName: "messages_userId_fkey"
+            columns: ["userId"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_reply_in_same_conversation"
+            columns: ["reply_to_message_id", "conversation_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id", "conversation_id"]
+          },
+        ]
+      }
+      message_hidden_for_users: {
+        Row: {
+          created_at: string
+          message_id: string
+          userId: string
+        }
+        Insert: {
+          created_at?: string
+          message_id: string
+          userId: string
+        }
+        Update: {
+          created_at?: string
+          message_id?: string
+          userId?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_hidden_for_users_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_hidden_for_users_userId_fkey"
+            columns: ["userId"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      message_reactions: {
+        Row: {
+          created_at: string
+          message_id: string
+          reaction: string
+          userId: string
+        }
+        Insert: {
+          created_at?: string
+          message_id: string
+          reaction: string
+          userId: string
+        }
+        Update: {
+          created_at?: string
+          message_id?: string
+          reaction?: string
+          userId?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_reactions_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_reactions_userId_fkey"
             columns: ["userId"]
             isOneToOne: false
             referencedRelation: "users"
@@ -434,31 +528,40 @@ export type Database = {
       notification_preferences: {
         Row: {
           comments: boolean
+          follow_requests: boolean
           follows: boolean
           likes: boolean
           mentions: boolean
           messages: boolean
+          message_previews: boolean
           push_enabled: boolean
+          replies: boolean
           updated_at: string
           userId: string
         }
         Insert: {
           comments?: boolean
+          follow_requests?: boolean
           follows?: boolean
           likes?: boolean
           mentions?: boolean
           messages?: boolean
+          message_previews?: boolean
           push_enabled?: boolean
+          replies?: boolean
           updated_at?: string
           userId: string
         }
         Update: {
           comments?: boolean
+          follow_requests?: boolean
           follows?: boolean
           likes?: boolean
           mentions?: boolean
           messages?: boolean
+          message_previews?: boolean
           push_enabled?: boolean
+          replies?: boolean
           updated_at?: string
           userId?: string
         }
@@ -701,24 +804,36 @@ export type Database = {
       }
       push_tokens: {
         Row: {
+          created_at: string
           device_id: string
+          disabled_at: string | null
+          failure_count: number
           id: string
+          last_used_at: string
           platform: string
           token: string
           updated_at: string
           userId: string
         }
         Insert: {
+          created_at?: string
           device_id: string
+          disabled_at?: string | null
+          failure_count?: number
           id?: string
+          last_used_at?: string
           platform: string
           token: string
           updated_at?: string
           userId: string
         }
         Update: {
+          created_at?: string
           device_id?: string
+          disabled_at?: string | null
+          failure_count?: number
           id?: string
+          last_used_at?: string
           platform?: string
           token?: string
           updated_at?: string
@@ -880,6 +995,9 @@ export type Database = {
         }
         Returns: string
       }
+      delete_message_for_everyone: { Args: { p_message_id: string }; Returns: Json }
+      get_conversation: { Args: { p_conversation_id: string }; Returns: Json }
+      get_message: { Args: { p_message_id: string }; Returns: Json }
       get_comments: {
         Args: {
           p_before_id?: string
@@ -887,6 +1005,10 @@ export type Database = {
           p_limit?: number
           p_post_id: string
         }
+        Returns: Json[]
+      }
+      get_messages: {
+        Args: { p_before_id?: string; p_before_time?: string; p_conversation_id: string; p_limit?: number }
         Returns: Json[]
       }
       get_conversations: {
@@ -926,7 +1048,12 @@ export type Database = {
         Args: { target: string; through_message: string }
         Returns: undefined
       }
+      mark_conversation_delivered: {
+        Args: { target: string; through_message: string }
+        Returns: undefined
+      }
       message_unread_count: { Args: never; Returns: number }
+      hide_message_for_me: { Args: { p_message_id: string }; Returns: undefined }
       post_document: {
         Args: { p: Database["public"]["Tables"]["posts"]["Row"] }
         Returns: Json
@@ -964,7 +1091,14 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      send_message: {
+        Args: { p_client_id: string; p_conversation_id: string; p_media_path?: string | null; p_mime_type?: string | null; p_reply_to_message_id?: string | null; p_text?: string }
+        Returns: Json
+      }
+      set_message_reaction: { Args: { p_message_id: string; p_reaction: string }; Returns: Json }
       start_conversation: { Args: { other_user: string }; Returns: string }
+      register_push_token: { Args: { p_device_id: string; p_platform: string; p_token: string }; Returns: undefined }
+      unregister_push_token: { Args: { p_device_id: string }; Returns: undefined }
       trending_hashtags: {
         Args: never
         Returns: {

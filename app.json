@@ -41,7 +41,21 @@
       ],
       "expo-video",
       "expo-localization",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "color": "#06C26F",
+          "defaultChannel": "general"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow LinkUp to select photos to send in messages.",
+          "microphonePermission": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

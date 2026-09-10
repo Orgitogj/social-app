@@ -11,6 +11,8 @@ import { supabase } from '@/lib/supabase'
 import Avatar from '@/components/Avatar'
 import { fetchPosts } from '@/services/postService'
 import { getUserData } from '@/services/userService'
+import { startConversation } from '@/services/chatService'
+import { unregisterPushToken } from '@/services/pushService'
 import PostCard from '@/components/PostCard'
 import Loading from '@/components/Loading'
 
@@ -173,6 +175,7 @@ const Profile = () => {
   }, [profileUserId])
 
   const onLogout = async () => {
+    await unregisterPushToken()
     const { error } = await supabase.auth.signOut()
 
     if (error) {
@@ -248,6 +251,12 @@ type UserHeaderProps = {
   isOwnProfile: boolean;
 };
 const UserHeader = ({ user, router, handleLogout, isOwnProfile }: UserHeaderProps) => {
+  const startChat = async () => {
+    if (!user?.id) return;
+    const result = await startConversation(user.id);
+    if (result.success) router.push({ pathname: '/main/chat', params: { conversationId: result.data } });
+    else Alert.alert('Messages', 'This conversation is unavailable.');
+  };
   return (
     <View style={{ flex: 1, backgroundColor: 'white', paddingHorizontal: wp(4) }}>
       <View>
@@ -289,10 +298,13 @@ const UserHeader = ({ user, router, handleLogout, isOwnProfile }: UserHeaderProp
             )}
           </View>
 
-          <View style={styles.userInfo}>
-            <Text style={styles.userName}>{user?.name}</Text>
-            <Text style={styles.infoText}>{profile?.location || 'Location not set'}</Text>
-          </View>
+            <View style={styles.userInfo}>
+             <Text style={styles.userName}>{user?.name}</Text>
+             <Text style={styles.infoText}>{user?.location || 'Location not set'}</Text>
+           </View>
+
+           {!isOwnProfile && <TouchableOpacity style={styles.messageButton} onPress={() => { void startChat(); }}><Text style={styles.messageButtonText}>Message</Text></TouchableOpacity>}
+           {isOwnProfile && <TouchableOpacity style={styles.settingsButton} onPress={() => router.push('/main/notificationSettings')}><Text style={styles.settingsButtonText}>Notification settings</Text></TouchableOpacity>}
 
           <View style={styles.info}>
             <Icon
@@ -371,6 +383,30 @@ const styles = StyleSheet.create({
     fontSize: hp(3),
     fontWeight: '500',
     color: theme.colors.textDark,
+  },
+
+  messageButton: {
+    alignSelf: 'center',
+    backgroundColor: theme.colors.primaryDark,
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    borderRadius: theme.radius.lg,
+  },
+  messageButtonText: {
+    color: 'white',
+    fontWeight: theme.fonts.semibold as any,
+  },
+  settingsButton: {
+    alignSelf: 'center',
+    borderColor: theme.colors.gray,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: theme.radius.lg,
+  },
+  settingsButtonText: {
+    color: theme.colors.text,
+    fontWeight: theme.fonts.medium as any,
   },
 
   info: {

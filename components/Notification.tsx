@@ -4,23 +4,22 @@ import { theme } from '@/constants/theme'
 import { hp, wp } from '@/helpers/common'
 import Avatar from './Avatar'
 import moment from 'moment'
+import { destinationFromNotification, destinationHref } from '@/lib/deepLinking';
+import { markNotificationRead } from '@/services/notificationsService';
+import type { Notification as NotificationItem } from '@/types/domain';
 
 type NotificationProps = {
-  item: any;
-  router: any;
+  item: NotificationItem;
+  router: { push: (href: ReturnType<typeof destinationHref>) => void };
 };
 
 const Notification = ({ item, router }: NotificationProps) => {
 
   const handleClick = () => {
-    let payload: { postId?: string; commentId?: string } = {};
-    try {
-      const parsed = typeof item?.data === 'string' ? JSON.parse(item.data) : item?.data;
-      payload = { postId: parsed?.postId, commentId: parsed?.commentId ?? parsed?.comentId };
-    } catch {
-      return;
-    }
-    if (payload.postId) router.push({ pathname: '/main/postDetails', params: payload })
+    void markNotificationRead(item.id);
+    const payload = { ...item.data, type: item.type };
+    const destination = destinationFromNotification(payload);
+    if (destination) router.push(destinationHref(destination));
   }
 
   const createdAt = moment(item?.created_at).format('MMM D');
