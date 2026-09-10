@@ -8,5 +8,25 @@ export type Follow = { id: string; follower_id: string; following_id: string; st
 export type Bookmark = { id: string; userId: string; postId: string; created_at: string };
 export type Block = { id: string; blocker_id: string; blocked_id: string; created_at: string };
 export type Mute = { id: string; userId: string; muted_id: string; created_at: string };
-export type Conversation = { id: string; user_low: string; user_high: string; created_at: string; updated_at: string; other_user?: Profile; latest_message?: Message; unread_count?: number };
-export type Message = { id: string; conversation_id: string; userId: string; text: string; media_path?: string | null; mime_type?: string | null; created_at: string };
+export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+export type MessageType = 'text' | 'image' | 'video' | 'audio' | 'file' | 'location';
+export type MessageReaction = { emoji: string; count: number; reacted_by_me: boolean };
+export type MessageReplyPreview = { id: string; userId: string; text: string; message_type: MessageType; media_path?: string | null; deleted_at?: string | null };
+export type Message = {
+  id: string;
+  client_id?: string | null;
+  conversation_id: string;
+  userId: string;
+  text: string;
+  message_type: MessageType;
+  media_path?: string | null;
+  mime_type?: string | null;
+  created_at: string;
+  deleted_at?: string | null;
+  deleted_by_sender?: boolean;
+  status?: MessageStatus;
+  reply_to?: MessageReplyPreview | null;
+  reactions?: MessageReaction[];
+};
+export type Conversation = { id: string; user_low: string; user_high: string; created_at: string; updated_at: string; other_user?: Profile; latest_message?: Message | null; unread_count?: number };
+export type NotificationPreferences = { userId: string; push_enabled: boolean; messages: boolean; likes: boolean; comments: boolean; replies: boolean; mentions: boolean; follows: boolean; follow_requests: boolean; message_previews: boolean; updated_at: string };
