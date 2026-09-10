@@ -9,10 +9,11 @@ import Icon from '@/assets/icons';
 import { useRouter } from 'expo-router';
 import Avatar from '@/components/Avatar';
 import { fetchPosts } from '@/services/postService';
-import { fetchNotifications } from '@/services/notificationsService';
+import { markAllNotificationsRead, unreadNotificationCount } from '@/services/notificationsService';
 import PostCard from '../../components/PostCard'
 import Loading from '@/components/Loading';
 import { getUserData } from '@/services/userService';
+import { useUnreadMessageCount } from '@/hooks/useChat';
 
 const Home = () => {
   const { user, setAuth } = useAuth();
@@ -21,6 +22,7 @@ const Home = () => {
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
+  const unreadMessages = useUnreadMessageCount(user?.id);
 
   const limitRef = useRef(0);
   const isFetchingRef = useRef(false);
@@ -155,8 +157,8 @@ const getPosts = async () => {
 
   const getNotificationCount = async () => {
     if (!user?.id) return;
-    let res = await fetchNotifications(user.id, 1, 1);
-    if (res.success) setNotificationCount(res.data?.length || 0);
+    const res = await unreadNotificationCount();
+    if (res.success) setNotificationCount(res.data || 0);
   }
 
   useEffect(() => {
@@ -200,6 +202,7 @@ const getPosts = async () => {
 
   const onNotificationsPress = () => {
     setNotificationCount(0);
+    void markAllNotificationsRead();
     router.push('/main/notifications');
   }
 
@@ -211,6 +214,15 @@ const getPosts = async () => {
           <View style={styles.icons}>
             <Pressable onPress={() => router.push('/main/search')}>
               <Icon name="search" size={hp(3.2)} strokeWidth={2} color={theme.colors.text} />
+            </Pressable>
+
+            <Pressable onPress={() => router.push('/main/messages')}>
+              <Icon name="mail" size={hp(3.2)} strokeWidth={2} color={theme.colors.text} />
+              {(unreadMessages.data ?? 0) > 0 && (
+                <View style={styles.pill}>
+                  <Text style={styles.pillText}>{(unreadMessages.data ?? 0) > 99 ? '99+' : unreadMessages.data}</Text>
+                </View>
+              )}
             </Pressable>
 
             <Pressable onPress={onNotificationsPress}>

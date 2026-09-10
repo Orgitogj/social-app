@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, ScrollView } from 'react-native'
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'expo-router'
-import { fetchNotifications } from '@/services/notificationsService';
+import { fetchNotifications, markAllNotificationsRead } from '@/services/notificationsService';
 import { useAuth } from '@/contexts/AuthContexts';
 import { hp, wp } from '@/helpers/common';
 import { theme } from '@/constants/theme';
@@ -21,6 +21,7 @@ const Notifications = () => {
       if (res.success) setNotifications(res.data || []);
     }
 
+    void markAllNotificationsRead();
     getNotifications();
   }, [user?.id]);
 
