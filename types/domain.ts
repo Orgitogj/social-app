@@ -30,3 +30,8 @@ export type Message = {
 };
 export type Conversation = { id: string; user_low: string; user_high: string; created_at: string; updated_at: string; other_user?: Profile; latest_message?: Message | null; unread_count?: number };
 export type NotificationPreferences = { userId: string; push_enabled: boolean; messages: boolean; likes: boolean; comments: boolean; replies: boolean; mentions: boolean; follows: boolean; follow_requests: boolean; message_previews: boolean; updated_at: string };
+export type StoryMediaType = 'image' | 'video';
+export type StoryAudience = 'followers' | 'close_friends';
+export type Story = { id: string; author_id: string; media_type: StoryMediaType; media_path: string; mime_type: string; thumbnail_path?: string | null; width: number; height: number; duration?: number | null; caption?: string | null; audience: StoryAudience; created_at: string; expires_at: string; author?: Profile };
+export type CloseFriend = { id: string; friend_id: string; created_at: string; user: Profile };
+export type CloseFriendCandidate = Profile & { is_close_friend: boolean };
