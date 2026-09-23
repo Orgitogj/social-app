@@ -14,3 +14,7 @@ create table public.close_friends (
 alter table public.close_friends enable row level security;
 revoke all on public.close_friends from anon, authenticated;
 create policy anon_denied on public.close_friends for all to anon using (false) with check (false);
+
+-- The unique (owner_id, friend_id) index serves owner lookups and story checks;
+-- this one serves "whose lists am I on" story trays and account-deletion cascades.
+create index close_friends_friend on public.close_friends (friend_id, owner_id);
