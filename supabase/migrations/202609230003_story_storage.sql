@@ -11,3 +11,8 @@ language sql stable security definer set search_path = '' as $$
       and (not image_only or o.metadata->>'mimetype' in ('image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'))
   );
 $$;
+
+create policy uploads_story_create on storage.objects for insert to authenticated with check (
+  bucket_id = 'uploads' and (storage.foldername(name))[1] = (select auth.uid())::text
+  and name ~ '^[0-9a-f-]{36}/stories/[0-9a-f-]{36}/(media\.(jpg|jpeg|png|webp|heic|heif|mp4|mov|webm)|thumbnail\.(jpg|jpeg|png|webp))$'
+);
