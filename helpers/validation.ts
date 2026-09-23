@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { COMMENT_LIMIT, POST_LIMIT } from '@/constants';
+import { COMMENT_LIMIT, POST_LIMIT, STORY_CAPTION_LIMIT, VIDEO_DURATION_LIMIT } from '@/constants';
 import { sanitizeHtml, stripHtmlTags } from './common';
 
 export const emailSchema = z.string().trim().toLowerCase().email('invalidEmail').max(254, 'invalidEmail');
@@ -31,4 +31,26 @@ export const profileSchema = z.object({
   location: z.string().trim().max(120, 'locationTooLong'),
   phoneNumber: z.string().trim().max(30, 'invalidPhone').refine(value => !value || /^[+\d\s().-]{5,30}$/.test(value), 'invalidPhone'),
   address: z.string().trim().max(300, 'addressTooLong'),
+});
+export const imageMimeTypeSchema = z.enum(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']);
+export const videoMimeTypeSchema = z.enum(['video/mp4', 'video/quicktime', 'video/webm']);
+export const storyMediaTypeSchema = z.enum(['image', 'video']);
+export const storyAudienceSchema = z.enum(['followers', 'close_friends']);
+export const storyCaptionSchema = z.string().trim().max(STORY_CAPTION_LIMIT, 'captionTooLong').transform(value => value || null);
+export const storyInputSchema = z.object({
+  id: uuidSchema,
+  mediaType: storyMediaTypeSchema,
+  mediaPath: z.string().min(1).max(500),
+  mimeType: z.union([imageMimeTypeSchema, videoMimeTypeSchema]),
+  width: z.number().int().min(1).max(16384),
+  height: z.number().int().min(1).max(16384),
+  duration: z.number().positive().max(VIDEO_DURATION_LIMIT, 'videoTooLong').nullable().optional(),
+  thumbnailPath: z.string().min(1).max(500).nullable().optional(),
+  caption: storyCaptionSchema.nullable().optional(),
+  audience: storyAudienceSchema.default('followers'),
+}).superRefine((value, context) => {
+  const isImage = imageMimeTypeSchema.safeParse(value.mimeType).success;
+  if ((value.mediaType === 'image') !== isImage) context.addIssue({ code: 'custom', message: 'invalidMedia', path: ['mimeType'] });
+  if (value.mediaType === 'video' && value.duration == null) context.addIssue({ code: 'custom', message: 'invalidMedia', path: ['duration'] });
+  if (value.mediaType === 'image' && value.duration != null) context.addIssue({ code: 'custom', message: 'invalidMedia', path: ['duration'] });
 });

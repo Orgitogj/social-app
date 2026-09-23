@@ -10,6 +10,8 @@ Authentication with email confirmation, password recovery, secure session persis
 
 Expo SDK 54 and Expo Router provide the native and web client. `contexts/` owns session and profile state. Typed feature services call Supabase RPCs and RLS-protected tables. `types/database.ts` is generated from the local schema; `types/domain.ts` holds UI domain models. Supabase migrations define tables, indexes, triggers, privacy rules, Storage rules, rate limits, and notification generation. Privileged account, push, and Storage cleanup actions are Edge Functions.
 
+Stories and Close Friends share this model. `close_friends` is readable only by its owner and never generates notifications. A story is published through `create_story`, which binds it to media uploaded under `{userId}/stories/{storyId}/` in the private `uploads` bucket; the database sets its 24 hour lifetime. `private.can_view_story` is the single visibility rule (author, or an accepted unblocked follower of an unexpired story, plus Close Friends membership for that audience) and Storage reads go through the same rule, so media is served only through short-lived signed URLs.
+
 ## Installation
 
 Use Node 20.19 or newer. Copy `.env.example` to `.env`, then set the public Supabase URL and anon or publishable key. Never put a service-role or secret key in this file.

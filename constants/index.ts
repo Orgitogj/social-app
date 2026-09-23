@@ -6,3 +6,4 @@ export const IMAGE_SIZE_LIMIT = 10 * 1024 * 1024;
 export const VIDEO_SIZE_LIMIT = 100 * 1024 * 1024;
 export const VIDEO_DURATION_LIMIT = 60;
 export const STORAGE_BUCKET = 'uploads';
+export const STORY_CAPTION_LIMIT = 500;
