@@ -1,5 +1,5 @@
 begin;
-select plan(38);
+select plan(47);
 
 select has_table('public', 'stories', 'stories table exists');
 select ok((select relrowsecurity from pg_class where oid = 'public.stories'::regclass), 'stories have row level security');
@@ -98,5 +98,29 @@ select set_config('request.jwt.claims', json_build_object('sub', '3a000000-0000-
 delete from public.stories where id = '5a000000-0000-4000-8000-000000000002';
 reset role;
 select is((select count(*) from private.storage_cleanup where path like '3a000000-0000-4000-8000-000000000001/stories/5a000000-0000-4000-8000-000000000002/%'), 2::bigint, 'deleting a story queues its media and thumbnail for cleanup');
+
+-- Author mutations and immutable lifetime.
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '3a000000-0000-4000-8000-000000000001', 'role', 'authenticated')::text, true);
+select lives_ok($$update public.stories set caption = 'Updated', audience = 'close_friends' where id = '5a000000-0000-4000-8000-000000000001'$$, 'the author can change caption and audience');
+select throws_ok($$update public.stories set audience = 'public' where id = '5a000000-0000-4000-8000-000000000001'$$, '23514', null, 'the author cannot set an unsupported audience');
+select throws_ok($$update public.stories set expires_at = now() + interval '1 year' where id = '5a000000-0000-4000-8000-000000000001'$$, '42501', null, 'the author cannot extend a story''s lifetime');
+select throws_ok($$update public.stories set author_id = '3a000000-0000-4000-8000-000000000002' where id = '5a000000-0000-4000-8000-000000000001'$$, '42501', null, 'the author cannot transfer ownership');
+reset role;
+select throws_ok($$update public.stories set expires_at = expires_at + interval '1 year', created_at = created_at + interval '1 year' where id = '5a000000-0000-4000-8000-000000000001'$$, '42501', 'Only a story caption or audience can change', 'even trusted writers cannot change a story''s lifetime');
+insert into public.stories(id, author_id, media_type, media_path, mime_type, width, height, created_at, expires_at)
+values ('5a000000-0000-4000-8000-000000000007', '3a000000-0000-4000-8000-000000000001', 'image', '3a000000-0000-4000-8000-000000000001/stories/5a000000-0000-4000-8000-000000000007/media.jpg', 'image/jpeg', 1, 1, now() + interval '1 year', now() + interval '2 years');
+select is((select expires_at from public.stories where id = '5a000000-0000-4000-8000-000000000007'), now() + interval '24 hours', 'a supplied expiry is replaced by the server lifetime');
+
+-- Expiry: age the followers story past its lifetime without waiting a day.
+alter table public.stories disable trigger story_lifecycle;
+update public.stories set created_at = now() - interval '25 hours', expires_at = now() - interval '1 hour' where id = '5a000000-0000-4000-8000-000000000003';
+alter table public.stories enable trigger story_lifecycle;
+set local role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '3a000000-0000-4000-8000-000000000003', 'role', 'authenticated')::text, true);
+select is((select count(*) from public.stories where id = '5a000000-0000-4000-8000-000000000003'), 0::bigint, 'an expired story is inaccessible to followers');
+select set_config('request.jwt.claims', json_build_object('sub', '3a000000-0000-4000-8000-000000000001', 'role', 'authenticated')::text, true);
+select ok(not exists(select 1 from public.get_active_stories('3a000000-0000-4000-8000-000000000001') s where s->>'id' = '5a000000-0000-4000-8000-000000000003'), 'an expired story is not active even for its author');
+select is((select count(*) from public.stories where id = '5a000000-0000-4000-8000-000000000003'), 1::bigint, 'an expired story remains readable to its author only');
 select finish();
 rollback;
