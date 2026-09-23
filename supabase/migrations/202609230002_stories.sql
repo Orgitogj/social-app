@@ -71,3 +71,11 @@ $$;
 
 revoke execute on function private.prepare_story(), private.can_view_story(uuid) from public, anon, authenticated;
 grant execute on function private.can_view_story(uuid) to authenticated;
+
+-- Stories are created only through the publishing RPC. Authors may change the
+-- caption or audience, or delete; ownership, media, and lifetime are immutable.
+grant select, delete on public.stories to authenticated;
+grant update (caption, audience) on public.stories to authenticated;
+create policy stories_read on public.stories for select to authenticated using (author_id = (select auth.uid()) or private.can_view_story(id));
+create policy stories_update on public.stories for update to authenticated using (author_id = (select auth.uid())) with check (author_id = (select auth.uid()));
+create policy stories_delete on public.stories for delete to authenticated using (author_id = (select auth.uid()));
