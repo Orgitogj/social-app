@@ -16,3 +16,17 @@ create policy uploads_story_create on storage.objects for insert to authenticate
   bucket_id = 'uploads' and (storage.foldername(name))[1] = (select auth.uid())::text
   and name ~ '^[0-9a-f-]{36}/stories/[0-9a-f-]{36}/(media\.(jpg|jpeg|png|webp|heic|heif|mp4|mov|webm)|thumbnail\.(jpg|jpeg|png|webp))$'
 );
+
+create or replace function private.can_read_object(path text) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select auth.uid() is not null and (
+    split_part(path, '/', 1) = auth.uid()::text
+    or exists(select 1 from public.post_media where (post_media.path = can_read_object.path or thumbnail_path = can_read_object.path) and private.can_view_post("postId"))
+    or exists(select 1 from public.users where image = path and not private.blocked(auth.uid(), id))
+    or exists(select 1 from public.messages where media_path = path and private.is_member(conversation_id))
+    or exists(select 1 from public.stories s where (s.media_path = can_read_object.path or s.thumbnail_path = can_read_object.path) and private.can_view_story(s.id))
+  );
+$$;
+
+revoke execute on function private.owned_object(text, boolean), private.can_read_object(text) from public, anon;
+grant execute on function private.can_read_object(text) to authenticated;
