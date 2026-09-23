@@ -51,3 +51,23 @@ create trigger story_lifecycle before insert or update on public.stories for eac
 -- Active stories per author ordered by expiry (equivalently creation). Also
 -- covers the author_id foreign-key cascade on account deletion.
 create index stories_author_active on public.stories (author_id, expires_at);
+
+-- Single source of truth for who may see a story. Non-authors need an active
+-- story and an accepted, unblocked follow; Close Friends stories additionally
+-- need membership on the author's private list, which only this function reads.
+create function private.can_view_story(target uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select auth.uid() is not null and exists (
+    select 1 from public.stories s
+    where s.id = target and (
+      s.author_id = auth.uid() or (
+        s.expires_at > now()
+        and private.follows(auth.uid(), s.author_id)
+        and (s.audience = 'followers' or exists(select 1 from public.close_friends cf where cf.owner_id = s.author_id and cf.friend_id = auth.uid()))
+      )
+    )
+  );
+$$;
+
+revoke execute on function private.prepare_story(), private.can_view_story(uuid) from public, anon, authenticated;
+grant execute on function private.can_view_story(uuid) to authenticated;
