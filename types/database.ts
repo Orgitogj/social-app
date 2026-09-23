@@ -81,6 +81,42 @@ export type Database = {
           },
         ]
       }
+      close_friends: {
+        Row: {
+          created_at: string
+          friend_id: string
+          id: string
+          owner_id: string
+        }
+        Insert: {
+          created_at?: string
+          friend_id: string
+          id?: string
+          owner_id: string
+        }
+        Update: {
+          created_at?: string
+          friend_id?: string
+          id?: string
+          owner_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "close_friends_friend_id_fkey"
+            columns: ["friend_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "close_friends_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       comment_likes: {
         Row: {
           commentId: string
@@ -906,6 +942,62 @@ export type Database = {
           },
         ]
       }
+      stories: {
+        Row: {
+          audience: string
+          author_id: string
+          caption: string | null
+          created_at: string
+          duration: number | null
+          expires_at: string
+          height: number
+          id: string
+          media_path: string
+          media_type: string
+          mime_type: string
+          thumbnail_path: string | null
+          width: number
+        }
+        Insert: {
+          audience?: string
+          author_id: string
+          caption?: string | null
+          created_at?: string
+          duration?: number | null
+          expires_at: string
+          height: number
+          id?: string
+          media_path: string
+          media_type: string
+          mime_type: string
+          thumbnail_path?: string | null
+          width: number
+        }
+        Update: {
+          audience?: string
+          author_id?: string
+          caption?: string | null
+          created_at?: string
+          duration?: number | null
+          expires_at?: string
+          height?: number
+          id?: string
+          media_path?: string
+          media_type?: string
+          mime_type?: string
+          thumbnail_path?: string | null
+          width?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stories_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_private: {
         Row: {
           address: string
@@ -995,9 +1087,29 @@ export type Database = {
         }
         Returns: string
       }
+      create_story: {
+        Args: {
+          p_audience?: string
+          p_caption?: string | null
+          p_duration?: number | null
+          p_height: number
+          p_id: string
+          p_media_path: string
+          p_media_type: string
+          p_mime_type: string
+          p_thumbnail_path?: string | null
+          p_width: number
+        }
+        Returns: Json
+      }
       delete_message_for_everyone: { Args: { p_message_id: string }; Returns: Json }
       get_conversation: { Args: { p_conversation_id: string }; Returns: Json }
       get_message: { Args: { p_message_id: string }; Returns: Json }
+      get_active_stories: { Args: { p_author_id: string }; Returns: Json[] }
+      get_close_friends: {
+        Args: { p_before_id?: string; p_before_time?: string; p_limit?: number }
+        Returns: Json[]
+      }
       get_comments: {
         Args: {
           p_before_id?: string
@@ -1058,6 +1170,10 @@ export type Database = {
         Args: { p: Database["public"]["Tables"]["posts"]["Row"] }
         Returns: Json
       }
+      search_close_friend_candidates: {
+        Args: { p_after_id?: string; p_limit?: number; p_query?: string }
+        Returns: Json[]
+      }
       search_hashtags: {
         Args: { p_after_name?: string; p_limit?: number; p_query?: string }
         Returns: {
@@ -1099,6 +1215,10 @@ export type Database = {
       start_conversation: { Args: { other_user: string }; Returns: string }
       register_push_token: { Args: { p_device_id: string; p_platform: string; p_token: string }; Returns: undefined }
       unregister_push_token: { Args: { p_device_id: string }; Returns: undefined }
+      story_document: {
+        Args: { s: Database["public"]["Tables"]["stories"]["Row"] }
+        Returns: Json
+      }
       trending_hashtags: {
         Args: never
         Returns: {
