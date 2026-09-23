@@ -91,3 +91,25 @@ $$;
 
 create trigger cleanup_story_media after delete on public.stories for each row execute function private.queue_story_media_cleanup();
 revoke execute on function private.queue_story_media_cleanup() from public, anon, authenticated;
+
+create function public.story_document(s public.stories) returns jsonb
+language sql stable security invoker set search_path = '' as $$
+  select jsonb_build_object(
+    'id', s.id, 'author_id', s.author_id, 'media_type', s.media_type, 'media_path', s.media_path, 'mime_type', s.mime_type,
+    'thumbnail_path', s.thumbnail_path, 'width', s.width, 'height', s.height, 'duration', s.duration, 'caption', s.caption,
+    'audience', s.audience, 'created_at', s.created_at, 'expires_at', s.expires_at,
+    'author', (select jsonb_build_object('id', id, 'name', name, 'username', username, 'image', image) from public.users where id = s.author_id)
+  );
+$$;
+
+-- Active means unexpired by the database clock, for everyone including the
+-- author; expired rows stay readable to their author only, for future archives.
+create function public.get_active_stories(p_author_id uuid) returns setof jsonb
+language sql stable security invoker set search_path = '' as $$
+  select public.story_document(s) from public.stories s
+  where s.author_id = p_author_id and s.expires_at > now()
+  order by s.expires_at, s.id limit 100;
+$$;
+
+revoke execute on function public.story_document(public.stories), public.get_active_stories(uuid) from public, anon;
+grant execute on function public.story_document(public.stories), public.get_active_stories(uuid) to authenticated;
