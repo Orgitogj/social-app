@@ -47,3 +47,7 @@ end;
 $$;
 
 create trigger story_lifecycle before insert or update on public.stories for each row execute function private.prepare_story();
+
+-- Active stories per author ordered by expiry (equivalently creation). Also
+-- covers the author_id foreign-key cascade on account deletion.
+create index stories_author_active on public.stories (author_id, expires_at);
