@@ -39,3 +39,31 @@ $$;
 
 create trigger block_close_friends after insert on public.blocks for each row execute function private.remove_blocked_close_friends();
 revoke execute on function private.remove_blocked_close_friends() from public, anon, authenticated;
+
+create function public.get_close_friends(p_before_time timestamptz default null, p_before_id uuid default null, p_limit integer default 30) returns setof jsonb
+language sql stable security invoker set search_path = '' as $$
+  select jsonb_build_object('id', cf.id, 'friend_id', cf.friend_id, 'created_at', cf.created_at,
+    'user', jsonb_build_object('id', u.id, 'name', u.name, 'username', u.username, 'image', u.image))
+  from public.close_friends cf join public.users u on u.id = cf.friend_id
+  where cf.owner_id = auth.uid()
+    and (p_before_time is null or (cf.created_at, cf.id) < (p_before_time, p_before_id))
+  order by cf.created_at desc, cf.id desc limit greatest(1, least(p_limit, 50));
+$$;
+
+-- Candidates are the caller's accepted followers, flagged with their current
+-- membership, so a management screen needs a single paged query.
+create function public.search_close_friend_candidates(p_query text default '', p_after_id uuid default null, p_limit integer default 30) returns setof jsonb
+language sql stable security invoker set search_path = '' as $$
+  select jsonb_build_object('id', u.id, 'name', u.name, 'username', u.username, 'image', u.image,
+    'is_close_friend', exists(select 1 from public.close_friends cf where cf.owner_id = auth.uid() and cf.friend_id = u.id))
+  from public.follows f join public.users u on u.id = f.follower_id
+  where f.following_id = auth.uid() and f.status = 'accepted'
+    and not private.blocked(auth.uid(), u.id)
+    and (p_after_id is null or u.id > p_after_id)
+    and (btrim(p_query) = '' or lower(u.name) like replace(replace(lower(btrim(left(p_query, 100))), '%', '\%'), '_', '\_') || '%'
+      or u.username like replace(replace(lower(btrim(left(p_query, 100))), '%', '\%'), '_', '\_') || '%')
+  order by u.id limit greatest(1, least(p_limit, 50));
+$$;
+
+revoke execute on function public.get_close_friends(timestamptz, uuid, integer), public.search_close_friend_candidates(text, uuid, integer) from public, anon;
+grant execute on function public.get_close_friends(timestamptz, uuid, integer), public.search_close_friend_candidates(text, uuid, integer) to authenticated;
