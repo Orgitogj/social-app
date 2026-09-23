@@ -79,3 +79,15 @@ grant update (caption, audience) on public.stories to authenticated;
 create policy stories_read on public.stories for select to authenticated using (author_id = (select auth.uid()) or private.can_view_story(id));
 create policy stories_update on public.stories for update to authenticated using (author_id = (select auth.uid())) with check (author_id = (select auth.uid()));
 create policy stories_delete on public.stories for delete to authenticated using (author_id = (select auth.uid()));
+
+create function private.queue_story_media_cleanup() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  insert into private.storage_cleanup(path) values (old.media_path) on conflict do nothing;
+  if old.thumbnail_path is not null then insert into private.storage_cleanup(path) values (old.thumbnail_path) on conflict do nothing; end if;
+  return old;
+end;
+$$;
+
+create trigger cleanup_story_media after delete on public.stories for each row execute function private.queue_story_media_cleanup();
+revoke execute on function private.queue_story_media_cleanup() from public, anon, authenticated;
