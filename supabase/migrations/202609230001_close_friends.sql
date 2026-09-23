@@ -27,3 +27,15 @@ create policy close_friends_read on public.close_friends for select to authentic
 create policy close_friends_create on public.close_friends for insert to authenticated with check (owner_id = (select auth.uid()) and private.follows(friend_id, owner_id));
 create policy close_friends_delete on public.close_friends for delete to authenticated using (owner_id = (select auth.uid()));
 create trigger close_friends_rate before insert on public.close_friends for each row execute function private.limit_insert('60');
+
+create function private.remove_blocked_close_friends() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  delete from public.close_friends
+  where (owner_id = new.blocker_id and friend_id = new.blocked_id) or (owner_id = new.blocked_id and friend_id = new.blocker_id);
+  return new;
+end;
+$$;
+
+create trigger block_close_friends after insert on public.blocks for each row execute function private.remove_blocked_close_friends();
+revoke execute on function private.remove_blocked_close_friends() from public, anon, authenticated;
