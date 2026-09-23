@@ -28,3 +28,22 @@ create table public.stories (
 alter table public.stories enable row level security;
 revoke all on public.stories from anon, authenticated;
 create policy anon_denied on public.stories for all to anon using (false) with check (false);
+
+-- The database owns the story lifetime: created_at and expires_at are always
+-- derived from the transaction clock, and nothing but caption/audience may change.
+create function private.prepare_story() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if tg_op = 'INSERT' then
+    new.created_at := now();
+    new.expires_at := new.created_at + interval '24 hours';
+  elsif (new.id, new.author_id, new.media_type, new.media_path, new.mime_type, new.thumbnail_path, new.width, new.height, new.duration, new.created_at, new.expires_at)
+    is distinct from (old.id, old.author_id, old.media_type, old.media_path, old.mime_type, old.thumbnail_path, old.width, old.height, old.duration, old.created_at, old.expires_at) then
+    raise exception 'Only a story caption or audience can change' using errcode = '42501';
+  end if;
+  new.caption := nullif(btrim(new.caption), '');
+  return new;
+end;
+$$;
+
+create trigger story_lifecycle before insert or update on public.stories for each row execute function private.prepare_story();
