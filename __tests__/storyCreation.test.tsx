@@ -2,6 +2,8 @@ import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook } from '@testing-library/react-native';
 import type { StoryDraft } from '@/types/domain';
+import { createStory, discardStoryUploads } from '@/services/storyService';
+import { useStoryComposer } from '@/hooks/useStoryComposer';
 
 const mockRpc = jest.fn();
 const mockMaybeSingle = jest.fn();
@@ -27,11 +29,6 @@ jest.mock('expo-crypto', () => {
   return { randomUUID: () => `d49d3be3-82e9-4a96-ae64-a868d7ddc2${String(++counter).padStart(2, '0')}` };
 });
 jest.mock('@react-navigation/native', () => ({ useFocusEffect: jest.fn() }));
-
-// eslint-disable-next-line import/first
-import { createStory, discardStoryUploads } from '@/services/storyService';
-// eslint-disable-next-line import/first
-import { useStoryComposer } from '@/hooks/useStoryComposer';
 
 const userId = 'a49d3be3-82e9-4a96-ae64-a868d7ddc2a4';
 const storyId = 'c49d3be3-82e9-4a96-ae64-a868d7ddc2a4';

@@ -1,15 +1,12 @@
 import { QueryClient } from '@tanstack/react-query';
 import { markStoryViewed, markTrayStoryViewed, orderStoryTray, storyRingState, storyViewState } from '@/helpers/stories';
 import type { Story, StoryTrayItem } from '@/types/domain';
+import { parseStoryTrayItem } from '@/services/storyService';
+import { applyStoryViewed, storyKeys } from '@/hooks/useStories';
 
 jest.mock('@/lib/supabase', () => ({ supabase: {} }));
 jest.mock('@/services/imageService', () => ({ uploadFileWithProgress: jest.fn() }));
 jest.mock('@react-navigation/native', () => ({ useFocusEffect: jest.fn() }));
-
-// eslint-disable-next-line import/first
-import { parseStoryTrayItem } from '@/services/storyService';
-// eslint-disable-next-line import/first
-import { applyStoryViewed, storyKeys } from '@/hooks/useStories';
 
 const me = 'a0000000-0000-4000-8000-000000000001';
 const alice = 'a0000000-0000-4000-8000-000000000002';

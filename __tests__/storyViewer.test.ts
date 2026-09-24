@@ -1,12 +1,10 @@
 import { createPausableTimer, nextExpiryDelay, nextStep, playableStories, previousStep, resolveStoryIndex, startCursor, storyDurationMs } from '@/helpers/storyViewer';
 import type { Story } from '@/types/domain';
+import { viewerAuthors } from '@/hooks/useStoryViewer';
 
 jest.mock('@/lib/supabase', () => ({ supabase: {} }));
 jest.mock('@/services/imageService', () => ({ uploadFileWithProgress: jest.fn() }));
 jest.mock('@react-navigation/native', () => ({ useFocusEffect: jest.fn() }));
-
-// eslint-disable-next-line import/first
-import { viewerAuthors } from '@/hooks/useStoryViewer';
 
 const now = Date.parse('2026-09-24T12:00:00Z');
 const alice = 'a0000000-0000-4000-8000-000000000002';
