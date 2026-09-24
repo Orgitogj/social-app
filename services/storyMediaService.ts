@@ -2,9 +2,10 @@ import { Platform } from 'react-native';
 import { File } from 'expo-file-system';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import type { ImagePickerAsset } from 'expo-image-picker';
-import { STORY_IMAGE_MAX_DIMENSION } from '@/constants';
+import * as VideoThumbnails from 'expo-video-thumbnails';
+import { STORY_IMAGE_MAX_DIMENSION, STORY_THUMBNAIL_MAX_DIMENSION } from '@/constants';
 import { fitWithin, normalizeStoryMimeType, storyErrorFromIssues } from '@/helpers/stories';
-import { imageMimeTypeSchema, storyDraftSchema } from '@/helpers/validation';
+import { imageMimeTypeSchema, storyDraftSchema, videoMimeTypeSchema } from '@/helpers/validation';
 import type { StoryDraft, StoryErrorCode } from '@/types/domain';
 
 export type StoryPreparation = { success: true; data: StoryDraft } | { success: false; error: StoryErrorCode };
@@ -43,4 +44,24 @@ export async function prepareStoryImage(asset: Pick<ImagePickerAsset, 'uri' | 'w
   } catch {
     return { success: false, error: 'invalidMedia' };
   }
+}
+
+async function createVideoThumbnail(uri: string): Promise<string | null> {
+  try {
+    const frame = await VideoThumbnails.getThumbnailAsync(uri, { time: 0, quality: 0.8 });
+    const thumbnail = await renderJpeg(frame.uri, frame.width, frame.height, STORY_THUMBNAIL_MAX_DIMENSION, 0.75);
+    return thumbnail.uri;
+  } catch {
+    return null;
+  }
+}
+
+export async function prepareStoryVideo(asset: Pick<ImagePickerAsset, 'uri' | 'width' | 'height' | 'mimeType' | 'fileName' | 'fileSize' | 'duration'>): Promise<StoryPreparation> {
+  const mimeType = normalizeStoryMimeType(asset.mimeType, asset.fileName ?? asset.uri);
+  if (!videoMimeTypeSchema.safeParse(mimeType).success) return { success: false, error: 'unsupportedMedia' };
+  const duration = typeof asset.duration === 'number' && asset.duration > 0 ? Math.round(asset.duration) / 1000 : null;
+  const fileSize = asset.fileSize ?? localFileSize(asset.uri);
+  const precheck = storyDraftSchema.safeParse({ mediaType: 'video', uri: asset.uri, mimeType, width: Math.max(1, Math.round(asset.width)), height: Math.max(1, Math.round(asset.height)), duration, fileSize, thumbnailUri: null });
+  if (!precheck.success) return { success: false, error: storyErrorFromIssues(precheck.error) };
+  return validated({ ...precheck.data, thumbnailUri: await createVideoThumbnail(asset.uri) });
 }
