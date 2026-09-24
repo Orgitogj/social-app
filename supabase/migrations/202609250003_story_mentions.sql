@@ -36,3 +36,24 @@ begin
   return new;
 end;
 $$;
+
+create function private.story_visible_to(target uuid, viewer uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select viewer is not null and exists (
+    select 1 from public.stories s
+    where s.id = target and (
+      s.author_id = viewer or (
+        s.expires_at > now()
+        and private.follows(viewer, s.author_id)
+        and (s.audience = 'followers' or exists(select 1 from public.close_friends cf where cf.owner_id = s.author_id and cf.friend_id = viewer))
+      )
+    )
+  );
+$$;
+
+revoke execute on function private.story_visible_to(uuid, uuid) from public, anon, authenticated;
+
+create or replace function private.can_view_story(target uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select auth.uid() is not null and private.story_visible_to(target, auth.uid());
+$$;
