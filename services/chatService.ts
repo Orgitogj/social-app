@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { deduplicate, type Cursor } from '@/helpers/pagination';
 import { messageInputSchema, messageReactionSchema, uuidSchema } from '@/helpers/validation';
 import { uploadFile } from '@/services/imageService';
-import type { Conversation, Message, MessageReaction, MessageReplyPreview, MessageStatus, MessageType } from '@/types/domain';
+import type { Conversation, Message, MessageReaction, MessageReplyPreview, MessageStatus, MessageType, StoryMessageContext } from '@/types/domain';
 import { toServiceError, type ServiceResult } from '@/types/result';
 
 export const CHAT_PAGE_SIZE = 30;
@@ -26,10 +26,11 @@ type MessageRecord = {
   status?: MessageStatus;
   reply_to?: MessageReplyPreview | null;
   reactions?: MessageReaction[];
+  story?: unknown;
 };
 
 function isMessageType(value: unknown): value is MessageType {
-  return value === 'text' || value === 'image' || value === 'video' || value === 'audio' || value === 'file' || value === 'location';
+  return value === 'text' || value === 'image' || value === 'video' || value === 'audio' || value === 'file' || value === 'location' || value === 'story_reply' || value === 'story_reaction';
 }
 
 function isMessageStatus(value: unknown): value is MessageStatus {
@@ -47,6 +48,22 @@ function parseReply(value: unknown): MessageReplyPreview | null {
     message_type: reply.message_type,
     media_path: typeof reply.media_path === 'string' ? reply.media_path : null,
     deleted_at: typeof reply.deleted_at === 'string' ? reply.deleted_at : null,
+  };
+}
+
+export function parseStoryContext(value: unknown): StoryMessageContext | null {
+  if (!value || typeof value !== 'object') return null;
+  const story = value as Record<string, unknown>;
+  if (typeof story.story_id !== 'string' || typeof story.author_id !== 'string' || typeof story.created_at !== 'string' || (story.media_type !== 'image' && story.media_type !== 'video')) return null;
+  const available = story.available === true;
+  return {
+    story_id: story.story_id,
+    author_id: story.author_id,
+    media_type: story.media_type,
+    created_at: story.created_at,
+    available,
+    preview_path: available && typeof story.preview_path === 'string' ? story.preview_path : null,
+    expires_at: available && typeof story.expires_at === 'string' ? story.expires_at : null,
   };
 }
 
@@ -79,6 +96,7 @@ export function parseMessage(value: unknown): Message | null {
     status: isMessageStatus(message.status) ? message.status : 'sent',
     reply_to: parseReply(message.reply_to),
     reactions: parseReactions(message.reactions),
+    story: parseStoryContext(message.story),
   };
 }
 
