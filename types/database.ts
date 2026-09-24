@@ -998,6 +998,39 @@ export type Database = {
           },
         ]
       }
+      story_views: {
+        Row: {
+          story_id: string
+          viewed_at: string
+          viewer_id: string
+        }
+        Insert: {
+          story_id: string
+          viewed_at?: string
+          viewer_id: string
+        }
+        Update: {
+          story_id?: string
+          viewed_at?: string
+          viewer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "story_views_story_id_fkey"
+            columns: ["story_id"]
+            isOneToOne: false
+            referencedRelation: "stories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "story_views_viewer_id_fkey"
+            columns: ["viewer_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_private: {
         Row: {
           address: string
@@ -1106,6 +1139,7 @@ export type Database = {
       get_conversation: { Args: { p_conversation_id: string }; Returns: Json }
       get_message: { Args: { p_message_id: string }; Returns: Json }
       get_active_stories: { Args: { p_author_id: string }; Returns: Json[] }
+      get_story_tray: { Args: { p_limit?: number }; Returns: Json[] }
       get_close_friends: {
         Args: { p_before_id?: string; p_before_time?: string; p_limit?: number }
         Returns: Json[]
@@ -1164,6 +1198,7 @@ export type Database = {
         Args: { target: string; through_message: string }
         Returns: undefined
       }
+      mark_story_viewed: { Args: { p_story_id: string }; Returns: boolean }
       message_unread_count: { Args: never; Returns: number }
       hide_message_for_me: { Args: { p_message_id: string }; Returns: undefined }
       post_document: {
