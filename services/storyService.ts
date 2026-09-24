@@ -1,10 +1,10 @@
 import type { z } from 'zod';
 import { supabase } from '@/lib/supabase';
-import { STORAGE_BUCKET } from '@/constants';
+import { STORAGE_BUCKET, STORY_TRAY_LIMIT } from '@/constants';
 import { storyMediaPath, storySignedUrlTtl, storyThumbnailPath, type StoryMimeType } from '@/helpers/stories';
 import { storyAudienceSchema, storyInputSchema, storyMediaTypeSchema, uuidSchema } from '@/helpers/validation';
 import { uploadFileToPath } from '@/services/imageService';
-import type { Story, StoryAudience } from '@/types/domain';
+import type { Profile, Story, StoryAudience, StoryTrayItem } from '@/types/domain';
 import { toServiceError, type ServiceResult } from '@/types/result';
 
 export type StoryInput = z.input<typeof storyInputSchema>;
@@ -41,6 +41,7 @@ export function parseStory(value: unknown): Story | null {
     author: author && typeof author.id === 'string' && typeof author.name === 'string'
       ? { id: author.id, name: author.name, username: typeof author.username === 'string' ? author.username : null, image: typeof author.image === 'string' ? author.image : null }
       : undefined,
+    viewed: story.viewed === true,
   };
 }
 
@@ -88,6 +89,36 @@ export async function fetchActiveStories(authorId: string): Promise<ServiceResul
   const { data, error } = await supabase.rpc('get_active_stories', { p_author_id: author.data });
   if (error) return resultFromError(error);
   return { success: true, data: (data ?? []).map(parseStory).filter((story): story is Story => story !== null) };
+}
+
+function parseProfile(value: unknown): Profile | null {
+  if (!value || typeof value !== 'object') return null;
+  const user = value as Record<string, unknown>;
+  if (typeof user.id !== 'string' || typeof user.name !== 'string') return null;
+  return { id: user.id, name: user.name, username: typeof user.username === 'string' ? user.username : null, image: typeof user.image === 'string' ? user.image : null };
+}
+
+export function parseStoryTrayItem(value: unknown): StoryTrayItem | null {
+  if (!value || typeof value !== 'object') return null;
+  const row = value as Record<string, unknown>;
+  const author = parseProfile(row.author);
+  const storyCount = Number(row.story_count);
+  const unviewedCount = Number(row.unviewed_count);
+  if (!author || !Number.isInteger(storyCount) || storyCount < 1 || !Number.isInteger(unviewedCount) || unviewedCount < 0 || unviewedCount > storyCount || typeof row.latest_story_at !== 'string') return null;
+  return { author, story_count: storyCount, unviewed_count: unviewedCount, latest_story_at: row.latest_story_at, has_close_friends: row.has_close_friends === true, is_own: row.is_own === true };
+}
+
+export async function fetchStoryTray(limit = STORY_TRAY_LIMIT): Promise<ServiceResult<StoryTrayItem[]>> {
+  const { data, error } = await supabase.rpc('get_story_tray', { p_limit: limit });
+  if (error) return resultFromError(error);
+  return { success: true, data: (data ?? []).map(parseStoryTrayItem).filter((item): item is StoryTrayItem => item !== null) };
+}
+
+export async function recordStoryView(storyId: string): Promise<ServiceResult<boolean>> {
+  const story = uuidSchema.safeParse(storyId);
+  if (!story.success) return resultFromError(story.error);
+  const { data, error } = await supabase.rpc('mark_story_viewed', { p_story_id: story.data });
+  return error ? resultFromError(error) : { success: true, data: data === true };
 }
 
 export async function updateStoryAudience(storyId: string, audience: StoryAudience): Promise<ServiceResult<void>> {
