@@ -2,9 +2,10 @@ import type { z } from 'zod';
 import { supabase } from '@/lib/supabase';
 import { STORAGE_BUCKET, STORY_TRAY_LIMIT } from '@/constants';
 import { storyErrorFromIssues, storyErrorFromService, storyMediaPath, storySignedUrlTtl, storyThumbnailPath, type StoryMimeType } from '@/helpers/stories';
-import { imageMimeTypeSchema, storyAudienceSchema, storyDraftSchema, storyInputSchema, storyMediaTypeSchema, storyPublishOptionsSchema, uuidSchema, videoMimeTypeSchema } from '@/helpers/validation';
+import { imageMimeTypeSchema, storyAudienceSchema, storyDraftSchema, storyInputSchema, storyMediaTypeSchema, storyInteractionSchema, storyPublishOptionsSchema, uuidSchema, videoMimeTypeSchema } from '@/helpers/validation';
+import { parseMessage } from '@/services/chatService';
 import { uploadFileWithProgress } from '@/services/imageService';
-import type { Profile, Story, StoryAudience, StoryDraft, StoryErrorCode, StoryTrayItem, StoryViewerEntry } from '@/types/domain';
+import type { Message, Profile, Story, StoryAudience, StoryDraft, StoryErrorCode, StoryInteractionKind, StoryTrayItem, StoryViewerEntry } from '@/types/domain';
 import { toServiceError, type ServiceResult } from '@/types/result';
 
 export type StoryInput = z.input<typeof storyInputSchema>;
@@ -176,6 +177,17 @@ export async function fetchStoryViewers(storyId: string, cursor?: { viewed_at: s
   const items = (data ?? []).map(parseStoryViewerEntry).filter((item): item is StoryViewerEntry => item !== null);
   const last = items.at(-1);
   return { success: true, data: { items, nextCursor: items.length === STORY_VIEWERS_PAGE_SIZE && last ? { viewed_at: last.viewed_at, id: last.viewer.id } : null } };
+}
+
+export type StoryInteractionInput = { kind: StoryInteractionKind; storyId: string; clientId: string; text: string };
+
+export async function sendStoryInteraction(input: StoryInteractionInput): Promise<ServiceResult<Message>> {
+  const parsed = storyInteractionSchema.safeParse(input);
+  if (!parsed.success) return resultFromError(parsed.error);
+  const { data, error } = await supabase.rpc('send_story_interaction', { p_story_id: parsed.data.storyId, p_client_id: parsed.data.clientId, p_kind: parsed.data.kind, p_text: parsed.data.text });
+  if (error) return resultFromError(error);
+  const message = parseMessage(data);
+  return message ? { success: true, data: message } : { success: false, error: { code: 'invalidData', message: 'Invalid message response', retryable: false } };
 }
 
 export type StoryPublishStage = 'uploading' | 'publishing';
