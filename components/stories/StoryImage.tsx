@@ -13,10 +13,11 @@ export type StoryMediaProps = {
   description: string;
   onViewed: () => void;
   onComplete: () => void;
-  onUnavailable: () => void;
+  onMediaError: (position: number) => void;
+  startAt: number;
 };
 
-function StoryImage({ url, paused, progress, description, onViewed, onComplete, onUnavailable }: StoryMediaProps) {
+function StoryImage({ url, paused, progress, description, onViewed, onComplete, onMediaError }: StoryMediaProps) {
   const [loaded, setLoaded] = useState(false);
   const handlers = useRef({ onViewed, onComplete });
   const timers = useRef<{ complete: PausableTimer; threshold: PausableTimer } | null>(null);
@@ -59,7 +60,7 @@ function StoryImage({ url, paused, progress, description, onViewed, onComplete, 
         cachePolicy="memory"
         transition={0}
         onLoad={() => setLoaded(true)}
-        onError={onUnavailable}
+        onError={() => onMediaError(0)}
         accessible
         accessibilityRole="image"
         accessibilityLabel={description}

@@ -5,10 +5,11 @@ import { VideoView, useVideoPlayer } from 'expo-video';
 import { STORY_VIEW_THRESHOLD_MS } from '@/constants';
 import type { StoryMediaProps } from '@/components/stories/StoryImage';
 
-function StoryVideo({ url, paused, progress, description, onViewed, onComplete, onUnavailable }: StoryMediaProps) {
+function StoryVideo({ url, startAt, paused, progress, description, onViewed, onComplete, onMediaError }: StoryMediaProps) {
   const [ready, setReady] = useState(false);
   const viewed = useRef(false);
   const completed = useRef(false);
+  const seeked = useRef(false);
   const player = useVideoPlayer({ uri: url }, instance => {
     instance.loop = false;
     instance.timeUpdateEventInterval = 0.1;
@@ -17,8 +18,12 @@ function StoryVideo({ url, paused, progress, description, onViewed, onComplete, 
   useEffect(() => { progress.setValue(0); }, [progress]);
 
   useEventListener(player, 'statusChange', ({ status }) => {
-    if (status === 'readyToPlay') setReady(true);
-    if (status === 'error') onUnavailable();
+    if (status === 'readyToPlay') {
+      if (!seeked.current && startAt > 0) player.currentTime = startAt;
+      seeked.current = true;
+      setReady(true);
+    }
+    if (status === 'error') onMediaError(player.currentTime);
   });
 
   useEventListener(player, 'timeUpdate', ({ currentTime }) => {
