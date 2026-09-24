@@ -75,3 +75,39 @@ create policy story_mentions_read on public.story_mentions for select to authent
   exists(select 1 from public.stories s where s.id = story_id and s.author_id = (select auth.uid()))
   or (user_id = (select auth.uid()) and private.can_view_story(story_id))
 );
+
+alter table public.notifications drop constraint notifications_type_check;
+alter table public.notifications add constraint notifications_type_check
+  check (type in ('like', 'comment', 'reply', 'mention', 'follow', 'follow_request', 'follow_accepted', 'message', 'story_mention'));
+
+create or replace function private.emit_notification(sender uuid, receiver uuid, kind text, payload jsonb, key text) returns void
+language plpgsql security definer set search_path = '' as $$
+declare preferences public.notification_preferences; enabled boolean;
+begin
+  if sender is null or receiver is null or sender = receiver or private.blocked(sender, receiver) then return; end if;
+  select * into preferences from public.notification_preferences where "userId" = receiver;
+  enabled := case kind
+    when 'like' then preferences.likes
+    when 'comment' then preferences.comments
+    when 'reply' then preferences.replies
+    when 'mention' then preferences.mentions
+    when 'story_mention' then preferences.mentions
+    when 'message' then preferences.messages
+    when 'follow_request' then preferences.follow_requests
+    else preferences.follows
+  end;
+  if not coalesce(enabled, false) then return; end if;
+  insert into public.notifications("senderId", "receiverId", type, title, data, dedupe_key)
+  values (sender, receiver, kind, case kind
+    when 'like' then 'liked your post'
+    when 'comment' then 'commented on your post'
+    when 'reply' then 'replied to your comment'
+    when 'mention' then 'mentioned you'
+    when 'story_mention' then 'mentioned you in their story'
+    when 'follow' then 'started following you'
+    when 'follow_request' then 'requested to follow you'
+    when 'follow_accepted' then 'accepted your follow request'
+    when 'message' then 'sent you a message'
+    else 'sent you a notification' end, payload, key) on conflict (dedupe_key) do nothing;
+end;
+$$;
