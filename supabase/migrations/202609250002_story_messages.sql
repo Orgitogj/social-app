@@ -103,3 +103,46 @@ language sql stable security invoker set search_path = '' as $$
   where receipts.conversation_id = m.conversation_id and receipts."userId" <> m."userId"
   limit 1;
 $$;
+
+create function public.send_story_interaction(p_story_id uuid, p_client_id uuid, p_kind text, p_text text default '') returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare target public.stories; message public.messages; conversation uuid; content text;
+begin
+  if auth.uid() is null then raise exception 'Authentication required' using errcode = '42501'; end if;
+  if p_client_id is null then raise exception 'A client message id is required' using errcode = '23514'; end if;
+  if p_kind is null or p_kind not in ('reply', 'reaction') then raise exception 'Invalid story interaction' using errcode = '23514'; end if;
+  select * into message from public.messages where "userId" = auth.uid() and client_id = p_client_id;
+  if found then return public.message_document(message); end if;
+  select * into target from public.stories where id = p_story_id and expires_at > now();
+  if not found or target.author_id = auth.uid() or not private.can_view_story(p_story_id) then
+    raise exception 'Story is unavailable' using errcode = '42501';
+  end if;
+  content := btrim(coalesce(p_text, ''));
+  if p_kind = 'reaction' then
+    if content not in ('❤️', '😂', '😮', '😢', '🔥', '👍') then raise exception 'Unsupported reaction' using errcode = '23514'; end if;
+    select * into message from public.messages
+    where story_id = p_story_id and "userId" = auth.uid() and message_type = 'story_reaction' and text = content
+      and deleted_at is null and created_at > now() - interval '10 seconds'
+    order by created_at desc limit 1;
+    if found then return public.message_document(message); end if;
+  elsif private.plain_text(content) = '' then
+    raise exception 'Message cannot be empty' using errcode = '23514';
+  end if;
+  select id into conversation from public.conversations
+  where user_low = least(auth.uid(), target.author_id) and user_high = greatest(auth.uid(), target.author_id);
+  if conversation is null then
+    conversation := public.start_conversation(target.author_id);
+  elsif not private.is_member(conversation) then
+    raise exception 'Conversation is unavailable' using errcode = '42501';
+  end if;
+  perform private.consume_rate('messages', 30);
+  insert into public.messages(conversation_id, "userId", client_id, text, message_type, story_id, story_context)
+  values (conversation, auth.uid(), p_client_id, content, case when p_kind = 'reply' then 'story_reply' else 'story_reaction' end, target.id,
+    jsonb_build_object('story_id', target.id, 'author_id', target.author_id, 'media_type', target.media_type, 'created_at', target.created_at))
+  returning * into message;
+  return public.message_document(message);
+end;
+$$;
+
+revoke execute on function public.send_story_interaction(uuid, uuid, text, text) from public, anon;
+grant execute on function public.send_story_interaction(uuid, uuid, text, text) to authenticated;
