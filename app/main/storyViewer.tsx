@@ -7,6 +7,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import StoryPlayer from '@/components/stories/StoryPlayer';
 import StoryCaption from '@/components/stories/StoryCaption';
+import StoryInteractionStatus from '@/components/stories/StoryInteractionStatus';
+import StoryReactionBar from '@/components/stories/StoryReactionBar';
+import StoryReplyBar from '@/components/stories/StoryReplyBar';
 import StoryViewCount from '@/components/stories/StoryViewCount';
 import StoryViewersSheet from '@/components/stories/StoryViewersSheet';
 import StoryViewerHeader from '@/components/stories/StoryViewerHeader';
@@ -14,6 +17,7 @@ import { theme } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContexts';
 import { uuidSchema } from '@/helpers/validation';
 import { refreshStoryTray, storyKeys, useMarkStoryViewed } from '@/hooks/useStories';
+import { useStoryInteraction } from '@/hooks/useStoryInteraction';
 import { useStoryViewer } from '@/hooks/useStoryViewer';
 
 export default function StoryViewerScreen() {
@@ -44,9 +48,14 @@ function StoryViewer({ authorId, onClose }: { authorId: string; onClose: () => v
   const [manualPause, setManualPause] = useState(false);
   const [appActive, setAppActive] = useState(() => AppState.currentState !== 'background');
   const [viewersOpen, setViewersOpen] = useState(false);
-  const paused = holding || manualPause || !focused || !appActive || viewersOpen;
+  const [replyFocused, setReplyFocused] = useState(false);
+  const paused = holding || manualPause || !focused || !appActive || viewersOpen || replyFocused;
   const { story, markUnavailable, revalidate } = viewer;
   const own = Boolean(story && user && story.author_id === user.id);
+  const interaction = useStoryInteraction(story && !own ? story.id : undefined);
+  const { reset: resetInteraction } = interaction;
+
+  useEffect(() => { resetInteraction(); }, [resetInteraction, story?.id]);
 
   const openViewers = useCallback(() => {
     if (!story || !own) return;
@@ -177,6 +186,13 @@ function StoryViewer({ authorId, onClose }: { authorId: string; onClose: () => v
           <View style={[styles.bottomPanel, { paddingBottom: insets.bottom + 12 }]}>
             {story.caption ? <StoryCaption caption={story.caption} /> : null}
             {own ? <StoryViewCount count={story.view_count} onPress={openViewers} /> : null}
+            {!own && story.can_reply ? (
+              <>
+                <StoryReactionBar onReact={emoji => { void interaction.react(emoji); }} disabled={interaction.state.status === 'sending'} sentReaction={interaction.state.status === 'sent' ? interaction.state.reaction : null} />
+                <StoryReplyBar authorName={story.author?.name ?? 'this story'} sending={interaction.state.status === 'sending'} onSend={interaction.reply} onFocusChange={setReplyFocused} />
+                <StoryInteractionStatus state={interaction.state} canRetry={interaction.canRetry} onRetry={() => { void interaction.retry(); }} />
+              </>
+            ) : null}
           </View>
         </KeyboardAvoidingView>
       ) : null}
