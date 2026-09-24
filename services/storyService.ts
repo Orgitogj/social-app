@@ -2,9 +2,10 @@ import type { z } from 'zod';
 import { supabase } from '@/lib/supabase';
 import { STORAGE_BUCKET, STORY_TRAY_LIMIT } from '@/constants';
 import { storyErrorFromIssues, storyErrorFromService, storyMediaPath, storySignedUrlTtl, storyThumbnailPath, type StoryMimeType } from '@/helpers/stories';
-import { imageMimeTypeSchema, storyAudienceSchema, storyDraftSchema, storyInputSchema, storyMediaTypeSchema, storyPublishOptionsSchema, uuidSchema, videoMimeTypeSchema } from '@/helpers/validation';
+import { imageMimeTypeSchema, storyAudienceSchema, storyDraftSchema, storyInputSchema, storyMediaTypeSchema, storyInteractionSchema, storyPublishOptionsSchema, uuidSchema, videoMimeTypeSchema } from '@/helpers/validation';
+import { parseMessage } from '@/services/chatService';
 import { uploadFileWithProgress } from '@/services/imageService';
-import type { Profile, Story, StoryAudience, StoryDraft, StoryErrorCode, StoryTrayItem } from '@/types/domain';
+import type { Message, Profile, Story, StoryAudience, StoryDraft, StoryErrorCode, StoryInteractionKind, StoryTrayItem, StoryViewerEntry } from '@/types/domain';
 import { toServiceError, type ServiceResult } from '@/types/result';
 
 export type StoryInput = z.input<typeof storyInputSchema>;
@@ -42,10 +43,11 @@ export function parseStory(value: unknown): Story | null {
       ? { id: author.id, name: author.name, username: typeof author.username === 'string' ? author.username : null, image: typeof author.image === 'string' ? author.image : null }
       : undefined,
     viewed: story.viewed === true,
+    view_count: typeof story.view_count === 'number' ? story.view_count : null,
+    can_reply: story.can_reply === true,
   };
 }
 
-// Uploads go to the story's own folder; publishing must use the same story id.
 export async function uploadStoryMedia(userId: string, storyId: string, fileUri: string, mimeType: StoryMimeType, onProgress?: (fraction: number) => void): Promise<ServiceResult<string>> {
   const user = uuidSchema.safeParse(userId);
   const story = uuidSchema.safeParse(storyId);
@@ -137,15 +139,55 @@ export async function deleteStory(storyId: string): Promise<ServiceResult<void>>
   return error ? resultFromError(error) : { success: true, data: undefined };
 }
 
-// Storage signs only objects the caller may read under story authorization,
-// and the link lifetime is capped by both the TTL and the story's expiry.
 export async function getStoryMediaUrl(path: string, expiresAt: string): Promise<ServiceResult<string>> {
   const ttl = storySignedUrlTtl(expiresAt);
   if (!path || ttl === null) return { success: false, error: { code: 'notFound', message: 'Story unavailable', retryable: false } };
-  const { data, error } = await supabase.storage.from(STORAGE_BUCKET).createSignedUrl(path, ttl);
-  return error || !data?.signedUrl
-    ? { success: false, error: { code: 'notFound', message: 'Story unavailable', retryable: false } }
-    : { success: true, data: data.signedUrl };
+  try {
+    const { data, error } = await supabase.storage.from(STORAGE_BUCKET).createSignedUrl(path, ttl);
+    if (data?.signedUrl && !error) return { success: true, data: data.signedUrl };
+    return isTransientStorageError(error)
+      ? { success: false, error: { code: 'networkError', message: 'Story could not be loaded', retryable: true } }
+      : { success: false, error: { code: 'notFound', message: 'Story unavailable', retryable: false } };
+  } catch {
+    return { success: false, error: { code: 'networkError', message: 'Story could not be loaded', retryable: true } };
+  }
+}
+
+export function isTransientStorageError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const value = error as { name?: unknown; status?: unknown; statusCode?: unknown };
+  const status = Number(value.status ?? value.statusCode);
+  return value.name === 'StorageUnknownError' || status === 408 || status === 429 || status >= 500;
+}
+
+export const STORY_VIEWERS_PAGE_SIZE = 30;
+
+export function parseStoryViewerEntry(value: unknown): StoryViewerEntry | null {
+  if (!value || typeof value !== 'object') return null;
+  const row = value as Record<string, unknown>;
+  const viewer = parseProfile(row.viewer);
+  return viewer && typeof row.viewed_at === 'string' ? { viewer, viewed_at: row.viewed_at } : null;
+}
+
+export async function fetchStoryViewers(storyId: string, cursor?: { viewed_at: string; id: string } | null): Promise<ServiceResult<{ items: StoryViewerEntry[]; nextCursor: { viewed_at: string; id: string } | null }>> {
+  const story = uuidSchema.safeParse(storyId);
+  if (!story.success) return resultFromError(story.error);
+  const { data, error } = await supabase.rpc('get_story_viewers', { p_story_id: story.data, p_before_time: cursor?.viewed_at, p_before_id: cursor?.id, p_limit: STORY_VIEWERS_PAGE_SIZE });
+  if (error) return resultFromError(error);
+  const items = (data ?? []).map(parseStoryViewerEntry).filter((item): item is StoryViewerEntry => item !== null);
+  const last = items.at(-1);
+  return { success: true, data: { items, nextCursor: items.length === STORY_VIEWERS_PAGE_SIZE && last ? { viewed_at: last.viewed_at, id: last.viewer.id } : null } };
+}
+
+export type StoryInteractionInput = { kind: StoryInteractionKind; storyId: string; clientId: string; text: string };
+
+export async function sendStoryInteraction(input: StoryInteractionInput): Promise<ServiceResult<Message>> {
+  const parsed = storyInteractionSchema.safeParse(input);
+  if (!parsed.success) return resultFromError(parsed.error);
+  const { data, error } = await supabase.rpc('send_story_interaction', { p_story_id: parsed.data.storyId, p_client_id: parsed.data.clientId, p_kind: parsed.data.kind, p_text: parsed.data.text });
+  if (error) return resultFromError(error);
+  const message = parseMessage(data);
+  return message ? { success: true, data: message } : { success: false, error: { code: 'invalidData', message: 'Invalid message response', retryable: false } };
 }
 
 export type StoryPublishStage = 'uploading' | 'publishing';

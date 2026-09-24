@@ -401,6 +401,8 @@ export type Database = {
           message_type: string
           mime_type: string | null
           reply_to_message_id: string | null
+          story_context: Json | null
+          story_id: string | null
           text: string
           userId: string
         }
@@ -415,6 +417,8 @@ export type Database = {
           message_type?: string
           mime_type?: string | null
           reply_to_message_id?: string | null
+          story_context?: Json | null
+          story_id?: string | null
           text?: string
           userId: string
         }
@@ -429,10 +433,19 @@ export type Database = {
           message_type?: string
           mime_type?: string | null
           reply_to_message_id?: string | null
+          story_context?: Json | null
+          story_id?: string | null
           text?: string
           userId?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "messages_story_id_fkey"
+            columns: ["story_id"]
+            isOneToOne: false
+            referencedRelation: "stories"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "messages_conversation_id_fkey"
             columns: ["conversation_id"]
@@ -998,6 +1011,39 @@ export type Database = {
           },
         ]
       }
+      story_mentions: {
+        Row: {
+          created_at: string
+          story_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          story_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          story_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "story_mentions_story_id_fkey"
+            columns: ["story_id"]
+            isOneToOne: false
+            referencedRelation: "stories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "story_mentions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       story_views: {
         Row: {
           story_id: string
@@ -1140,6 +1186,10 @@ export type Database = {
       get_message: { Args: { p_message_id: string }; Returns: Json }
       get_active_stories: { Args: { p_author_id: string }; Returns: Json[] }
       get_story_tray: { Args: { p_limit?: number }; Returns: Json[] }
+      get_story_viewers: {
+        Args: { p_before_id?: string; p_before_time?: string; p_limit?: number; p_story_id: string }
+        Returns: Json[]
+      }
       get_close_friends: {
         Args: { p_before_id?: string; p_before_time?: string; p_limit?: number }
         Returns: Json[]
@@ -1241,6 +1291,10 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      send_story_interaction: {
+        Args: { p_client_id: string; p_kind: string; p_story_id: string; p_text?: string }
+        Returns: Json
       }
       send_message: {
         Args: { p_client_id: string; p_conversation_id: string; p_media_path?: string | null; p_mime_type?: string | null; p_reply_to_message_id?: string | null; p_text?: string }

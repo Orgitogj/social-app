@@ -9,7 +9,8 @@ export type Bookmark = { id: string; userId: string; postId: string; created_at:
 export type Block = { id: string; blocker_id: string; blocked_id: string; created_at: string };
 export type Mute = { id: string; userId: string; muted_id: string; created_at: string };
 export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
-export type MessageType = 'text' | 'image' | 'video' | 'audio' | 'file' | 'location';
+export type MessageType = 'text' | 'image' | 'video' | 'audio' | 'file' | 'location' | 'story_reply' | 'story_reaction';
+export type StoryMessageContext = { story_id: string; author_id: string; media_type: 'image' | 'video'; created_at: string; available: boolean; preview_path: string | null; expires_at: string | null };
 export type MessageReaction = { emoji: string; count: number; reacted_by_me: boolean };
 export type MessageReplyPreview = { id: string; userId: string; text: string; message_type: MessageType; media_path?: string | null; deleted_at?: string | null };
 export type Message = {
@@ -27,12 +28,13 @@ export type Message = {
   status?: MessageStatus;
   reply_to?: MessageReplyPreview | null;
   reactions?: MessageReaction[];
+  story?: StoryMessageContext | null;
 };
 export type Conversation = { id: string; user_low: string; user_high: string; created_at: string; updated_at: string; other_user?: Profile; latest_message?: Message | null; unread_count?: number };
 export type NotificationPreferences = { userId: string; push_enabled: boolean; messages: boolean; likes: boolean; comments: boolean; replies: boolean; mentions: boolean; follows: boolean; follow_requests: boolean; message_previews: boolean; updated_at: string };
 export type StoryMediaType = 'image' | 'video';
 export type StoryAudience = 'followers' | 'close_friends';
-export type Story = { id: string; author_id: string; media_type: StoryMediaType; media_path: string; mime_type: string; thumbnail_path?: string | null; width: number; height: number; duration?: number | null; caption?: string | null; audience: StoryAudience; created_at: string; expires_at: string; author?: Profile; viewed?: boolean };
+export type Story = { id: string; author_id: string; media_type: StoryMediaType; media_path: string; mime_type: string; thumbnail_path?: string | null; width: number; height: number; duration?: number | null; caption?: string | null; audience: StoryAudience; created_at: string; expires_at: string; author?: Profile; viewed?: boolean; view_count?: number | null; can_reply?: boolean };
 export type CloseFriend = { id: string; friend_id: string; created_at: string; user: Profile };
 export type CloseFriendCandidate = Profile & { is_close_friend: boolean };
 export type StoryViewState = 'none' | 'partial' | 'all';
@@ -42,3 +44,5 @@ export type StoryDraft = { mediaType: StoryMediaType; uri: string; mimeType: str
 export type StoryErrorCode = 'unsupportedMedia' | 'mediaTooLarge' | 'videoTooLong' | 'videoTooShort' | 'captionTooLong' | 'invalidAudience' | 'invalidMedia' | 'noCloseFriends' | 'permissionDenied' | 'uploadFailed' | 'publishFailed' | 'rateLimited' | 'storyUnavailable';
 export type StoryUploadStatus = 'idle' | 'preparing' | 'uploading' | 'publishing' | 'success' | 'failed';
 export type StoryUploadState = { status: StoryUploadStatus; progress: number; error: StoryErrorCode | null };
+export type StoryViewerEntry = { viewer: Profile; viewed_at: string };
+export type StoryInteractionKind = 'reply' | 'reaction';

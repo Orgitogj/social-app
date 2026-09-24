@@ -1,3 +1,5 @@
+import type { MessageType } from '@/types/domain';
+
 export function formatChatDate(value: string, now = new Date()) {
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return '';
@@ -21,4 +23,20 @@ export function isNewDate(previous: string | undefined, current: string) {
   const before = new Date(previous);
   const now = new Date(current);
   return before.getFullYear() !== now.getFullYear() || before.getMonth() !== now.getMonth() || before.getDate() !== now.getDate();
+}
+
+type PreviewSource = { text: string; message_type: MessageType; deleted_at?: string | null };
+
+export function storyMessageLabel(messageType: MessageType, text: string, mine: boolean) {
+  if (messageType === 'story_reaction') return mine ? `You reacted ${text} to their story` : `Reacted ${text} to your story`;
+  if (messageType === 'story_reply') return mine ? 'You replied to their story' : 'Replied to your story';
+  return '';
+}
+
+export function messagePreviewText(message: PreviewSource | null | undefined, mine?: boolean) {
+  if (!message) return 'No messages yet';
+  if (message.deleted_at) return 'This message was deleted';
+  if (message.message_type === 'story_reaction') return mine === undefined ? `Story reaction ${message.text}` : storyMessageLabel(message.message_type, message.text, mine);
+  if (message.message_type === 'story_reply') return mine === undefined ? `Story reply: ${message.text}` : `${storyMessageLabel(message.message_type, message.text, mine)}: ${message.text}`;
+  return message.text || (message.message_type === 'image' ? 'Photo' : 'Message');
 }

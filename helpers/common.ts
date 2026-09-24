@@ -19,7 +19,21 @@ export const normalizeSearch = (value: string) => value.normalize('NFKC').trim()
 export const wp = (percentage: number) => percentage;
 export const hp = (percentage: number) => percentage;
 export const extractHashtags = (value: string) => [...new Set([...stripHtmlTags(value).matchAll(/(?:^|[^\p{L}\p{N}_])#([\p{L}\p{N}_]{1,50})/gu)].map(match => match[1].toLocaleLowerCase()))].slice(0, 20);
-export const extractMentions = (value: string) => [...new Set([...stripHtmlTags(value).matchAll(/(?:^|[^\w])@([a-z0-9_]{3,30})/gi)].map(match => match[1].toLowerCase()))].slice(0, 20);
+export const MENTION_PATTERN = /(?:^|[^\w])@([a-z0-9_]{3,30})/gi;
+export const extractMentions = (value: string) => [...new Set([...stripHtmlTags(value).matchAll(MENTION_PATTERN)].map(match => match[1].toLowerCase()))].slice(0, 20);
+export type TextSegment = { text: string; mention: string | null };
+export function splitMentions(value: string): TextSegment[] {
+  const segments: TextSegment[] = [];
+  let cursor = 0;
+  for (const match of value.matchAll(MENTION_PATTERN)) {
+    const start = (match.index ?? 0) + match[0].length - match[1].length - 1;
+    if (start > cursor) segments.push({ text: value.slice(cursor, start), mention: null });
+    segments.push({ text: value.slice(start, start + match[1].length + 1), mention: match[1].toLowerCase() });
+    cursor = start + match[1].length + 1;
+  }
+  if (cursor < value.length) segments.push({ text: value.slice(cursor), mention: null });
+  return segments;
+}
 
 export function relativeTime(value: string, language: 'en' | 'sq' = 'en', now = Date.now()) {
   const seconds = Math.min(0, Math.round((new Date(value).getTime() - now) / 1000));

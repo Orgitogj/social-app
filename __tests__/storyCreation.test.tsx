@@ -11,6 +11,7 @@ const mockRemove = jest.fn();
 const mockUpload = jest.fn();
 const mockSelectStoryMedia = jest.fn();
 const mockPrepareStoryAsset = jest.fn();
+const mockReleaseStoryDraft = jest.fn();
 
 jest.mock('@/lib/supabase', () => ({
   supabase: {
@@ -23,6 +24,7 @@ jest.mock('@/services/imageService', () => ({ uploadFileWithProgress: (...args: 
 jest.mock('@/services/storyMediaService', () => ({
   selectStoryMedia: (...args: unknown[]) => mockSelectStoryMedia(...args),
   prepareStoryAsset: (...args: unknown[]) => mockPrepareStoryAsset(...args),
+  releaseStoryDraft: (...args: unknown[]) => mockReleaseStoryDraft(...args),
 }));
 jest.mock('expo-crypto', () => {
   let counter = 0;
