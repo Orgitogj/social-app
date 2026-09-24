@@ -141,10 +141,22 @@ export async function deleteStory(storyId: string): Promise<ServiceResult<void>>
 export async function getStoryMediaUrl(path: string, expiresAt: string): Promise<ServiceResult<string>> {
   const ttl = storySignedUrlTtl(expiresAt);
   if (!path || ttl === null) return { success: false, error: { code: 'notFound', message: 'Story unavailable', retryable: false } };
-  const { data, error } = await supabase.storage.from(STORAGE_BUCKET).createSignedUrl(path, ttl);
-  return error || !data?.signedUrl
-    ? { success: false, error: { code: 'notFound', message: 'Story unavailable', retryable: false } }
-    : { success: true, data: data.signedUrl };
+  try {
+    const { data, error } = await supabase.storage.from(STORAGE_BUCKET).createSignedUrl(path, ttl);
+    if (data?.signedUrl && !error) return { success: true, data: data.signedUrl };
+    return isTransientStorageError(error)
+      ? { success: false, error: { code: 'networkError', message: 'Story could not be loaded', retryable: true } }
+      : { success: false, error: { code: 'notFound', message: 'Story unavailable', retryable: false } };
+  } catch {
+    return { success: false, error: { code: 'networkError', message: 'Story could not be loaded', retryable: true } };
+  }
+}
+
+export function isTransientStorageError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const value = error as { name?: unknown; status?: unknown; statusCode?: unknown };
+  const status = Number(value.status ?? value.statusCode);
+  return value.name === 'StorageUnknownError' || status === 408 || status === 429 || status >= 500;
 }
 
 export type StoryPublishStage = 'uploading' | 'publishing';

@@ -5,6 +5,7 @@ import { STORY_SIGNED_URL_TTL_SECONDS, markStoryViewed, markTrayStoryViewed, ord
 import { fetchActiveStories, fetchStoryTray, getStoryMediaUrl, recordStoryView } from '@/services/storyService';
 import { fetchCloseFriends } from '@/services/closeFriendsService';
 import type { Story, StoryTrayItem } from '@/types/domain';
+import { AppError } from '@/types/result';
 
 export const STORY_STALE_TIME = 30_000;
 
@@ -33,7 +34,7 @@ export const storyMediaQuery = (path: string, expiresAt: string) => ({
   retry: false,
   queryFn: async (): Promise<string> => {
     const result = await getStoryMediaUrl(path, expiresAt);
-    if (!result.success) throw new Error(result.error.message);
+    if (!result.success) throw new AppError(result.error.code, result.error.retryable);
     return result.data;
   },
 });
