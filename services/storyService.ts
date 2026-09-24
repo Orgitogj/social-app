@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { STORAGE_BUCKET, STORY_TRAY_LIMIT } from '@/constants';
 import { storyMediaPath, storySignedUrlTtl, storyThumbnailPath, type StoryMimeType } from '@/helpers/stories';
 import { storyAudienceSchema, storyInputSchema, storyMediaTypeSchema, uuidSchema } from '@/helpers/validation';
-import { uploadFileToPath } from '@/services/imageService';
+import { uploadFileWithProgress } from '@/services/imageService';
 import type { Profile, Story, StoryAudience, StoryTrayItem } from '@/types/domain';
 import { toServiceError, type ServiceResult } from '@/types/result';
 
@@ -46,20 +46,20 @@ export function parseStory(value: unknown): Story | null {
 }
 
 // Uploads go to the story's own folder; publishing must use the same story id.
-export async function uploadStoryMedia(userId: string, storyId: string, fileUri: string, mimeType: StoryMimeType): Promise<ServiceResult<string>> {
+export async function uploadStoryMedia(userId: string, storyId: string, fileUri: string, mimeType: StoryMimeType, onProgress?: (fraction: number) => void): Promise<ServiceResult<string>> {
   const user = uuidSchema.safeParse(userId);
   const story = uuidSchema.safeParse(storyId);
   if (!user.success || !story.success || !fileUri) return { success: false, error: { code: 'invalidData', message: 'Invalid story upload', retryable: false } };
-  const upload = await uploadFileToPath(storyMediaPath(user.data, story.data, mimeType), fileUri, mimeType);
-  return upload.success && upload.data ? { success: true, data: upload.data } : { success: false, error: { code: 'networkError', message: upload.msg ?? 'Upload failed', retryable: true } };
+  const upload = await uploadFileWithProgress(storyMediaPath(user.data, story.data, mimeType), fileUri, mimeType, onProgress);
+  return upload.success ? { success: true, data: upload.path } : { success: false, error: { code: 'networkError', message: 'uploadFailed', retryable: upload.retryable } };
 }
 
 export async function uploadStoryThumbnail(userId: string, storyId: string, fileUri: string, mimeType: 'image/jpeg' | 'image/png' | 'image/webp' = 'image/jpeg'): Promise<ServiceResult<string>> {
   const user = uuidSchema.safeParse(userId);
   const story = uuidSchema.safeParse(storyId);
   if (!user.success || !story.success || !fileUri) return { success: false, error: { code: 'invalidData', message: 'Invalid story upload', retryable: false } };
-  const upload = await uploadFileToPath(storyThumbnailPath(user.data, story.data, mimeType), fileUri, mimeType);
-  return upload.success && upload.data ? { success: true, data: upload.data } : { success: false, error: { code: 'networkError', message: upload.msg ?? 'Upload failed', retryable: true } };
+  const upload = await uploadFileWithProgress(storyThumbnailPath(user.data, story.data, mimeType), fileUri, mimeType);
+  return upload.success ? { success: true, data: upload.path } : { success: false, error: { code: 'networkError', message: 'uploadFailed', retryable: upload.retryable } };
 }
 
 export async function publishStory(input: StoryInput): Promise<ServiceResult<Story>> {

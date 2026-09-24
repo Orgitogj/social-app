@@ -9,7 +9,7 @@ jest.mock('@/lib/supabase', () => ({
     storage: { from: () => ({ createSignedUrl: mockCreateSignedUrl }) },
   },
 }));
-jest.mock('@/services/imageService', () => ({ uploadFileToPath: jest.fn() }));
+jest.mock('@/services/imageService', () => ({ uploadFileWithProgress: jest.fn() }));
 
 // eslint-disable-next-line import/first
 import { addCloseFriend, parseCloseFriend, parseCloseFriendCandidate } from '@/services/closeFriendsService';
