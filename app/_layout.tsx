@@ -97,5 +97,6 @@ function MainLayout() {
   return <Stack screenOptions={{ headerShown: false }}>
     <Stack.Screen name="main/postDetails" options={{ presentation: 'modal' }} />
     <Stack.Screen name="main/chat" options={{ presentation: 'card' }} />
+    <Stack.Screen name="main/storyComposer" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
   </Stack>;
 }
