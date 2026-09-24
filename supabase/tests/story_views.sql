@@ -69,7 +69,7 @@ select is((select count(*) from public.story_views), 1::bigint, 'a viewer reads 
 select is((select (t->>'has_close_friends')::boolean from public.get_story_tray() t where t->'author'->>'id' = '6b000000-0000-4000-8000-000000000001'), true, 'a close friend sees the close friends indication');
 select is((select (t->>'story_count')::int from public.get_story_tray() t where t->'author'->>'id' = '6b000000-0000-4000-8000-000000000001'), 3, 'a close friend''s tray includes close friends stories');
 select set_config('request.jwt.claims', json_build_object('sub', '6b000000-0000-4000-8000-000000000001', 'role', 'authenticated')::text, true);
-select is((select count(*) from public.story_views), 0::bigint, 'an author cannot read who viewed their stories yet');
+select is((select count(*) from public.story_views), 3::bigint, 'an author reads the views of their own stories');
 select is(public.mark_story_viewed('7b000000-0000-4000-8000-000000000001'), false, 'an author viewing their own story is not an external view');
 reset role;
 select is((select count(*) from public.story_views where viewer_id = '6b000000-0000-4000-8000-000000000001'), 0::bigint, 'no view row is stored for the author');
