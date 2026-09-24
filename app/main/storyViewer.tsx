@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Animated, AppState, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, ActivityIndicator, Animated, AppState, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -70,8 +70,45 @@ function StoryViewer({ authorId, onClose }: { authorId: string; onClose: () => v
 
   const togglePause = useCallback(() => setManualPause(value => !value), []);
 
+  const [translateY] = useState(() => new Animated.Value(0));
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const gesture = useRef({ onClose, reduceMotion });
+
+  useEffect(() => { gesture.current = { onClose, reduceMotion }; }, [onClose, reduceMotion]);
+
+  useEffect(() => {
+    let active = true;
+    void AccessibilityInfo.isReduceMotionEnabled().then(value => { if (active) setReduceMotion(value); });
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => {
+      active = false;
+      subscription.remove();
+    };
+  }, []);
+
+  const [panResponder] = useState(() => PanResponder.create({
+    onMoveShouldSetPanResponderCapture: (_, state) => state.dy > 12 && Math.abs(state.dy) > Math.abs(state.dx) * 1.5,
+    onPanResponderGrant: () => setHolding(true),
+    onPanResponderMove: (_, state) => {
+      if (!gesture.current.reduceMotion) translateY.setValue(Math.max(0, state.dy));
+    },
+    onPanResponderRelease: (_, state) => {
+      setHolding(false);
+      if (state.dy > 120 || state.vy > 1.2) {
+        gesture.current.onClose();
+        return;
+      }
+      if (gesture.current.reduceMotion) translateY.setValue(0);
+      else Animated.spring(translateY, { toValue: 0, useNativeDriver: true }).start();
+    },
+    onPanResponderTerminate: () => {
+      setHolding(false);
+      translateY.setValue(0);
+    },
+  }));
+
   return (
-    <View style={styles.screen}>
+    <Animated.View style={[styles.screen, { transform: [{ translateY }] }]} {...panResponder.panHandlers}>
       <StatusBar hidden />
       {story ? (
         <StoryPlayer key={`${story.id}:${viewer.restartKey}`} story={story} paused={paused} progress={progress} onViewed={onViewed} onComplete={viewer.next} onUnavailable={onUnavailable} />
@@ -124,7 +161,7 @@ function StoryViewer({ authorId, onClose }: { authorId: string; onClose: () => v
           <Text style={styles.captionText} importantForAccessibility="no">{story.caption}</Text>
         </View>
       ) : null}
-    </View>
+    </Animated.View>
   );
 }
 
