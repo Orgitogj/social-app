@@ -57,3 +57,21 @@ create or replace function private.can_view_story(target uuid) returns boolean
 language sql stable security definer set search_path = '' as $$
   select auth.uid() is not null and private.story_visible_to(target, auth.uid());
 $$;
+
+create table public.story_mentions (
+  story_id uuid not null references public.stories(id) on delete cascade,
+  user_id uuid not null references public.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (story_id, user_id)
+);
+
+create index story_mentions_user on public.story_mentions (user_id);
+
+alter table public.story_mentions enable row level security;
+revoke all on public.story_mentions from anon, authenticated;
+create policy anon_denied on public.story_mentions for all to anon using (false) with check (false);
+grant select on public.story_mentions to authenticated;
+create policy story_mentions_read on public.story_mentions for select to authenticated using (
+  exists(select 1 from public.stories s where s.id = story_id and s.author_id = (select auth.uid()))
+  or (user_id = (select auth.uid()) and private.can_view_story(story_id))
+);
