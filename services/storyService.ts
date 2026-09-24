@@ -42,6 +42,8 @@ export function parseStory(value: unknown): Story | null {
       ? { id: author.id, name: author.name, username: typeof author.username === 'string' ? author.username : null, image: typeof author.image === 'string' ? author.image : null }
       : undefined,
     viewed: story.viewed === true,
+    view_count: typeof story.view_count === 'number' ? story.view_count : null,
+    can_reply: story.can_reply === true,
   };
 }
 
