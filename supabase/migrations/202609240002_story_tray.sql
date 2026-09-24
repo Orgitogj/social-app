@@ -1,9 +1,3 @@
--- Phases 8-9: Story tray and per-viewer viewed state. Both functions run as the
--- caller, so stories and story_views row security decide what is returned and a
--- viewer only ever learns about their own views.
-
--- Active stories now carry whether the caller has viewed each one, so the viewer
--- can start at the first unviewed story without reading raw view rows.
 create or replace function public.get_active_stories(p_author_id uuid) returns setof jsonb
 language sql stable security invoker set search_path = '' as $$
   select public.story_document(s) || jsonb_build_object('viewed',
@@ -13,11 +7,6 @@ language sql stable security invoker set search_path = '' as $$
   order by s.expires_at, s.id limit 100;
 $$;
 
--- One grouped summary per author with accessible active stories: the caller and
--- the accounts they follow. A single query replaces per-author story requests,
--- returns no media, and counts unviewed stories without shipping view rows.
--- Ordering is deterministic: own tray first, then authors with unviewed
--- stories, then most recent activity, with the author id as the final tiebreak.
 create function public.get_story_tray(p_limit integer default 50) returns setof jsonb
 language sql stable security invoker set search_path = '' as $$
   with authors as (
