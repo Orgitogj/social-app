@@ -8,7 +8,6 @@ select ok(not has_table_privilege('anon', 'public.close_friends', 'SELECT'), 'an
 select ok(not exists(select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'close_friends'), 'membership changes are not broadcast over realtime');
 select ok(not has_function_privilege('authenticated', 'private.remove_blocked_close_friends()', 'execute'), 'block cleanup is not callable by clients');
 
--- Owner: Olivia. Followers: Finn (eligible), Grace (eligible), Blake (later blocks Olivia). Stranger: Sam.
 insert into auth.users(id, aud, role, email, raw_app_meta_data, raw_user_meta_data, created_at, updated_at) values
   ('2a000000-0000-4000-8000-000000000001', 'authenticated', 'authenticated', 'cf-olivia@example.test', '{}'::jsonb, '{"name":"Olivia"}'::jsonb, now(), now()),
   ('2a000000-0000-4000-8000-000000000002', 'authenticated', 'authenticated', 'cf-finn@example.test', '{}'::jsonb, '{"name":"Finn"}'::jsonb, now(), now()),
@@ -24,7 +23,6 @@ insert into public.follows(follower_id, following_id) values ('2a000000-0000-400
 select set_config('request.jwt.claims', json_build_object('sub', '2a000000-0000-4000-8000-000000000005', 'role', 'authenticated')::text, true);
 insert into public.follows(follower_id, following_id) values ('2a000000-0000-4000-8000-000000000005', '2a000000-0000-4000-8000-000000000001');
 
--- Owner management.
 select set_config('request.jwt.claims', json_build_object('sub', '2a000000-0000-4000-8000-000000000001', 'role', 'authenticated')::text, true);
 select lives_ok($$insert into public.close_friends(owner_id, friend_id) values ('2a000000-0000-4000-8000-000000000001', '2a000000-0000-4000-8000-000000000002')$$, 'an owner can add an accepted follower');
 select throws_ok($$insert into public.close_friends(owner_id, friend_id) values ('2a000000-0000-4000-8000-000000000001', '2a000000-0000-4000-8000-000000000002')$$, '23505', null, 'a duplicate membership is rejected');
@@ -38,7 +36,6 @@ select ok((select (c->>'is_close_friend')::boolean from public.search_close_frie
 select ok(not (select (c->>'is_close_friend')::boolean from public.search_close_friend_candidates('Grace') c), 'candidate search flags non-members');
 select is((select count(*) from public.search_close_friend_candidates('Sam')), 0::bigint, 'strangers are not offered as candidates');
 
--- Members and outsiders cannot inspect or manage the list.
 select set_config('request.jwt.claims', json_build_object('sub', '2a000000-0000-4000-8000-000000000002', 'role', 'authenticated')::text, true);
 select is((select count(*) from public.close_friends), 0::bigint, 'a member cannot read the owner''s list');
 select is((select count(*) from public.close_friends where friend_id = '2a000000-0000-4000-8000-000000000002'), 0::bigint, 'a member cannot query their own membership');
@@ -53,7 +50,6 @@ select is((select count(*) from public.close_friends where owner_id = '2a000000-
 select is((select count(*) from public.notifications where "senderId" = '2a000000-0000-4000-8000-000000000001'), 0::bigint, 'adding a close friend sends no notification');
 select throws_ok($$insert into public.close_friends(owner_id, friend_id) values ('2a000000-0000-4000-8000-000000000001', '2a000000-0000-4000-8000-000000000001')$$, '23514', null, 'self membership is rejected by a constraint even for trusted writers');
 
--- Removal, then block semantics.
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', '2a000000-0000-4000-8000-000000000001', 'role', 'authenticated')::text, true);
 delete from public.close_friends where friend_id = '2a000000-0000-4000-8000-000000000002';

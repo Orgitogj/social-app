@@ -107,8 +107,6 @@ Deno.serve(async request => {
         if (!ticket || !state || !job.token) return;
         if (ticket.status === 'ok' && ticket.id) tickets.push({ ticketId: ticket.id, notificationId: job.notification_id, token: job.token });
         else if (ticket.details?.error === 'DeviceNotRegistered') invalidTokens.push(job.token);
-        // A response from Expo is terminal for this token. Retrying a partially
-        // accepted batch would create duplicate notifications on other devices.
         state.processed += 1;
       });
     }

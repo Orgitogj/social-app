@@ -1,5 +1,7 @@
 import { STORY_SIGNED_URL_TTL_SECONDS, storyMediaPath, storySignedUrlTtl, storyThumbnailPath } from '@/helpers/stories';
 import { storyAudienceSchema, storyCaptionSchema, storyInputSchema } from '@/helpers/validation';
+import { addCloseFriend, parseCloseFriend, parseCloseFriendCandidate } from '@/services/closeFriendsService';
+import { getStoryMediaUrl, parseStory } from '@/services/storyService';
 
 const mockInsert = jest.fn();
 const mockCreateSignedUrl = jest.fn();
@@ -10,11 +12,6 @@ jest.mock('@/lib/supabase', () => ({
   },
 }));
 jest.mock('@/services/imageService', () => ({ uploadFileWithProgress: jest.fn() }));
-
-// eslint-disable-next-line import/first
-import { addCloseFriend, parseCloseFriend, parseCloseFriendCandidate } from '@/services/closeFriendsService';
-// eslint-disable-next-line import/first
-import { getStoryMediaUrl, parseStory } from '@/services/storyService';
 
 const userId = 'a49d3be3-82e9-4a96-ae64-a868d7ddc2a4';
 const friendId = 'b49d3be3-82e9-4a96-ae64-a868d7ddc2a4';

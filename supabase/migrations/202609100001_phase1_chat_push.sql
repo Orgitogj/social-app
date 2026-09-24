@@ -1,7 +1,3 @@
--- Phase 1: production chat, receipts, device push management, and secure queries.
--- This migration deliberately extends the existing one-to-one model instead of adding
--- another conversation or notification system.
-
 alter table public.conversation_members
   add column if not exists last_delivered_at timestamptz;
 
@@ -91,8 +87,6 @@ grant select on public.message_hidden_for_users to authenticated;
 create policy message_hidden_read on public.message_hidden_for_users for select to authenticated
   using ("userId" = (select auth.uid()) and exists(select 1 from public.messages m where m.id = message_id and private.is_member(m.conversation_id)));
 
--- Only RPCs mutate messages, receipts, and hidden-message state. The legacy RLS
--- still protects reads and remains the final authorization layer for every query.
 revoke insert on public.messages from authenticated;
 revoke update on public.messages from authenticated;
 grant update (replies, follow_requests, message_previews, likes, comments, follows, mentions, messages, push_enabled) on public.notification_preferences to authenticated;
@@ -403,9 +397,6 @@ language sql security definer set search_path = '' as $$
   delete from public.push_tokens where "userId" = auth.uid() and device_id = p_device_id;
 $$;
 
--- The Edge Function authenticates with the service-role key and is the only
--- process allowed to claim or complete dispatch jobs. Clients cannot enumerate
--- other users' tokens, queues, or receipts.
 create function public.claim_push_jobs(p_limit integer default 50)
 returns table(notification_id uuid, token text, notification_type text, sender_name text, message_preview text, data jsonb, message_previews boolean)
 language plpgsql security definer set search_path = '' as $$

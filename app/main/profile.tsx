@@ -40,7 +40,7 @@ const Profile = () => {
   const postsRef = useRef<any[]>([]);
 
   const loadProfileUser = async () => {
-    if (isOwnProfile) return; // currentUser vjen direkt nga AuthContext, i freskët
+    if (isOwnProfile) return;
     if (!profileUserId) return;
     let res = await getUserData(profileUserId);
     if (res.success) setProfileUser(res.data);
@@ -82,7 +82,6 @@ const Profile = () => {
     getPosts();
   }, [profileUserId])
 
-  // Realtime: posts (insert/update/delete) dhe postLikes, vetem per postimet e ketij profili
   useEffect(() => {
     if (!profileUserId) return;
 

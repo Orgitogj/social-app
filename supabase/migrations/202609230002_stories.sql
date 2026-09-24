@@ -1,7 +1,3 @@
--- Phase 2: Stories. Media lives in the existing private uploads bucket under a
--- per-story folder ({author}/stories/{story}/...), so a row and its objects share
--- one ownership boundary and one authorization decision.
-
 create table public.stories (
   id uuid primary key default gen_random_uuid(),
   author_id uuid not null references public.users(id) on delete cascade,
@@ -29,8 +25,6 @@ alter table public.stories enable row level security;
 revoke all on public.stories from anon, authenticated;
 create policy anon_denied on public.stories for all to anon using (false) with check (false);
 
--- The database owns the story lifetime: created_at and expires_at are always
--- derived from the transaction clock, and nothing but caption/audience may change.
 create function private.prepare_story() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
@@ -48,13 +42,8 @@ $$;
 
 create trigger story_lifecycle before insert or update on public.stories for each row execute function private.prepare_story();
 
--- Active stories per author ordered by expiry (equivalently creation). Also
--- covers the author_id foreign-key cascade on account deletion.
 create index stories_author_active on public.stories (author_id, expires_at);
 
--- Single source of truth for who may see a story. Non-authors need an active
--- story and an accepted, unblocked follow; Close Friends stories additionally
--- need membership on the author's private list, which only this function reads.
 create function private.can_view_story(target uuid) returns boolean
 language sql stable security definer set search_path = '' as $$
   select auth.uid() is not null and exists (
@@ -72,8 +61,6 @@ $$;
 revoke execute on function private.prepare_story(), private.can_view_story(uuid) from public, anon, authenticated;
 grant execute on function private.can_view_story(uuid) to authenticated;
 
--- Stories are created only through the publishing RPC. Authors may change the
--- caption or audience, or delete; ownership, media, and lifetime are immutable.
 grant select, delete on public.stories to authenticated;
 grant update (caption, audience) on public.stories to authenticated;
 create policy stories_read on public.stories for select to authenticated using (author_id = (select auth.uid()) or private.can_view_story(id));
@@ -102,8 +89,6 @@ language sql stable security invoker set search_path = '' as $$
   );
 $$;
 
--- Active means unexpired by the database clock, for everyone including the
--- author; expired rows stay readable to their author only, for future archives.
 create function public.get_active_stories(p_author_id uuid) returns setof jsonb
 language sql stable security invoker set search_path = '' as $$
   select public.story_document(s) from public.stories s
