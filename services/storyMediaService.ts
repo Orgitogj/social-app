@@ -29,6 +29,10 @@ export async function renderJpeg(uri: string, width: number, height: number, max
   return { uri: result.uri, width: result.width, height: result.height };
 }
 
+export function isPlayableVideoType(mimeType: string, platform: string = Platform.OS) {
+  return !(platform === 'ios' && mimeType === 'video/webm');
+}
+
 export function deleteCachedFile(uri: string | null | undefined) {
   if (!uri || Platform.OS === 'web' || !uri.startsWith(Paths.cache.uri)) return;
   try {
@@ -71,7 +75,7 @@ async function createVideoThumbnail(uri: string): Promise<string | null> {
 
 export async function prepareStoryVideo(asset: Pick<ImagePicker.ImagePickerAsset, 'uri' | 'width' | 'height' | 'mimeType' | 'fileName' | 'fileSize' | 'duration'>): Promise<StoryPreparation> {
   const mimeType = normalizeStoryMimeType(asset.mimeType, asset.fileName ?? asset.uri);
-  if (!videoMimeTypeSchema.safeParse(mimeType).success) return { success: false, error: 'unsupportedMedia' };
+  if (!videoMimeTypeSchema.safeParse(mimeType).success || !isPlayableVideoType(mimeType)) return { success: false, error: 'unsupportedMedia' };
   const duration = typeof asset.duration === 'number' && asset.duration > 0 ? Math.round(asset.duration) / 1000 : null;
   const fileSize = asset.fileSize ?? localFileSize(asset.uri);
   const precheck = storyDraftSchema.safeParse({ mediaType: 'video', uri: asset.uri, mimeType, width: Math.max(1, Math.round(asset.width)), height: Math.max(1, Math.round(asset.height)), duration, fileSize, thumbnailUri: null });
