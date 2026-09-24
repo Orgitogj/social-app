@@ -111,3 +111,27 @@ begin
     else 'sent you a notification' end, payload, key) on conflict (dedupe_key) do nothing;
 end;
 $$;
+
+create function private.index_story_mentions() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare token text; target uuid;
+begin
+  if tg_op = 'UPDATE' then
+    if new.caption is not distinct from old.caption then return new; end if;
+    delete from public.story_mentions where story_id = new.id;
+  end if;
+  for token in select private.extract_mentions(new.caption) loop
+    select id into target from public.users where username = token;
+    if target is not null and target <> new.author_id and not private.blocked(new.author_id, target) then
+      insert into public.story_mentions(story_id, user_id) values (new.id, target) on conflict do nothing;
+      if private.story_visible_to(new.id, target) then
+        perform private.emit_notification(new.author_id, target, 'story_mention', jsonb_build_object('storyId', new.id, 'userId', new.author_id), 'story_mention:' || new.id || ':' || target);
+      end if;
+    end if;
+  end loop;
+  return new;
+end;
+$$;
+
+revoke execute on function private.index_story_mentions() from public, anon, authenticated;
+create trigger index_story_mentions after insert or update of caption on public.stories for each row execute function private.index_story_mentions();
