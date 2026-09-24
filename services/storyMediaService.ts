@@ -43,6 +43,12 @@ export function deleteCachedFile(uri: string | null | undefined) {
   }
 }
 
+export function releaseStoryDraft(draft: StoryDraft | null) {
+  if (!draft) return;
+  if (draft.mediaType === 'image') deleteCachedFile(draft.uri);
+  deleteCachedFile(draft.thumbnailUri);
+}
+
 function validated(draft: StoryDraft): StoryPreparation {
   const parsed = storyDraftSchema.safeParse(draft);
   return parsed.success ? { success: true, data: draft } : { success: false, error: storyErrorFromIssues(parsed.error) };

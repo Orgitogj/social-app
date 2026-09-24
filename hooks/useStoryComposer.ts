@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { randomUUID } from 'expo-crypto';
 import { useQueryClient } from '@tanstack/react-query';
-import { prepareStoryAsset, selectStoryMedia, type StoryMediaSelection, type StoryMediaSource } from '@/services/storyMediaService';
+import { prepareStoryAsset, releaseStoryDraft, selectStoryMedia, type StoryMediaSelection, type StoryMediaSource } from '@/services/storyMediaService';
 import { createStory, discardStoryUploads, type StoryPublishOptions } from '@/services/storyService';
 import { refreshStoryTray, storyKeys } from '@/hooks/useStories';
 import type { Story, StoryDraft, StoryUploadState } from '@/types/domain';
@@ -72,6 +72,7 @@ export function useStoryComposer(userId?: string) {
     }
     uploadsMayExist.current = false;
     setUpload({ status: 'success', progress: 1, error: null });
+    releaseStoryDraft(draft);
     void refreshStoryTray(client);
     void client.invalidateQueries({ queryKey: storyKeys.author(userId), exact: true });
     return result.data;
@@ -80,6 +81,7 @@ export function useStoryComposer(userId?: string) {
   const discard = useCallback(() => {
     if (busy.current) return false;
     if (userId && draft && storyId.current && uploadsMayExist.current) void discardStoryUploads(userId, storyId.current, draft.mimeType);
+    releaseStoryDraft(draft);
     storyId.current = null;
     uploadsMayExist.current = false;
     setDraft(null);
