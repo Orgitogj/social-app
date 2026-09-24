@@ -45,7 +45,6 @@ export function parseStory(value: unknown): Story | null {
   };
 }
 
-// Uploads go to the story's own folder; publishing must use the same story id.
 export async function uploadStoryMedia(userId: string, storyId: string, fileUri: string, mimeType: StoryMimeType, onProgress?: (fraction: number) => void): Promise<ServiceResult<string>> {
   const user = uuidSchema.safeParse(userId);
   const story = uuidSchema.safeParse(storyId);
@@ -137,8 +136,6 @@ export async function deleteStory(storyId: string): Promise<ServiceResult<void>>
   return error ? resultFromError(error) : { success: true, data: undefined };
 }
 
-// Storage signs only objects the caller may read under story authorization,
-// and the link lifetime is capped by both the TTL and the story's expiry.
 export async function getStoryMediaUrl(path: string, expiresAt: string): Promise<ServiceResult<string>> {
   const ttl = storySignedUrlTtl(expiresAt);
   if (!path || ttl === null) return { success: false, error: { code: 'notFound', message: 'Story unavailable', retryable: false } };
