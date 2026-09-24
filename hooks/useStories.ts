@@ -3,6 +3,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { STORY_SIGNED_URL_TTL_SECONDS, markStoryViewed, markTrayStoryViewed, orderStoryTray } from '@/helpers/stories';
 import { fetchActiveStories, fetchStoryTray, getStoryMediaUrl, recordStoryView } from '@/services/storyService';
+import { fetchCloseFriends } from '@/services/closeFriendsService';
 import type { Story, StoryTrayItem } from '@/types/domain';
 
 export const STORY_STALE_TIME = 30_000;
@@ -91,4 +92,17 @@ export function useMarkStoryViewed(currentUserId?: string) {
       void refreshStoryTray(client);
     }
   }, [client, currentUserId]);
+}
+
+export function useCloseFriendsAvailable(enabled: boolean) {
+  return useQuery({
+    queryKey: storyKeys.closeFriendsAvailable(),
+    enabled,
+    staleTime: STORY_STALE_TIME,
+    queryFn: async () => {
+      const result = await fetchCloseFriends();
+      if (!result.success) throw new Error(result.error.message);
+      return result.data.items.length > 0;
+    },
+  });
 }
