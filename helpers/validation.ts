@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { COMMENT_LIMIT, POST_LIMIT, STORY_CAPTION_LIMIT, VIDEO_DURATION_LIMIT } from '@/constants';
+import { COMMENT_LIMIT, POST_LIMIT, STORY_CAPTION_LIMIT, STORY_IMAGE_SIZE_LIMIT, STORY_VIDEO_MAX_DURATION, STORY_VIDEO_MIN_DURATION, STORY_VIDEO_SIZE_LIMIT, VIDEO_DURATION_LIMIT } from '@/constants';
 import { sanitizeHtml, stripHtmlTags } from './common';
 
 export const emailSchema = z.string().trim().toLowerCase().email('invalidEmail').max(254, 'invalidEmail');
@@ -35,7 +35,7 @@ export const profileSchema = z.object({
 export const imageMimeTypeSchema = z.enum(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']);
 export const videoMimeTypeSchema = z.enum(['video/mp4', 'video/quicktime', 'video/webm']);
 export const storyMediaTypeSchema = z.enum(['image', 'video']);
-export const storyAudienceSchema = z.enum(['followers', 'close_friends']);
+export const storyAudienceSchema = z.enum(['followers', 'close_friends'], { error: 'invalidAudience' });
 export const storyCaptionSchema = z.string().trim().max(STORY_CAPTION_LIMIT, 'captionTooLong').transform(value => value || null);
 export const storyInputSchema = z.object({
   id: uuidSchema,
@@ -54,3 +54,28 @@ export const storyInputSchema = z.object({
   if (value.mediaType === 'video' && value.duration == null) context.addIssue({ code: 'custom', message: 'invalidMedia', path: ['duration'] });
   if (value.mediaType === 'image' && value.duration != null) context.addIssue({ code: 'custom', message: 'invalidMedia', path: ['duration'] });
 });
+export const storyMediaUriSchema = z.string().trim().min(1, 'invalidMedia').max(4096, 'invalidMedia').refine(value => /^(file|content|ph|blob|data):/i.test(value), 'invalidMedia');
+export const storyDraftSchema = z.object({
+  mediaType: storyMediaTypeSchema,
+  uri: storyMediaUriSchema,
+  mimeType: z.string(),
+  width: z.number().int('invalidMedia').min(1, 'invalidMedia').max(16384, 'invalidMedia'),
+  height: z.number().int('invalidMedia').min(1, 'invalidMedia').max(16384, 'invalidMedia'),
+  duration: z.number().nullable(),
+  fileSize: z.number().int('invalidMedia').nonnegative('invalidMedia').nullable(),
+  thumbnailUri: storyMediaUriSchema.nullable(),
+}).superRefine((value, context) => {
+  if (value.mediaType === 'image') {
+    if (!imageMimeTypeSchema.safeParse(value.mimeType).success) context.addIssue({ code: 'custom', message: 'unsupportedMedia', path: ['mimeType'] });
+    if (value.duration !== null) context.addIssue({ code: 'custom', message: 'invalidMedia', path: ['duration'] });
+    if (value.fileSize !== null && value.fileSize > STORY_IMAGE_SIZE_LIMIT) context.addIssue({ code: 'custom', message: 'mediaTooLarge', path: ['fileSize'] });
+    return;
+  }
+  if (!videoMimeTypeSchema.safeParse(value.mimeType).success) context.addIssue({ code: 'custom', message: 'unsupportedMedia', path: ['mimeType'] });
+  if (value.duration === null || !Number.isFinite(value.duration)) context.addIssue({ code: 'custom', message: 'invalidMedia', path: ['duration'] });
+  else if (value.duration < STORY_VIDEO_MIN_DURATION) context.addIssue({ code: 'custom', message: 'videoTooShort', path: ['duration'] });
+  else if (value.duration > STORY_VIDEO_MAX_DURATION) context.addIssue({ code: 'custom', message: 'videoTooLong', path: ['duration'] });
+  if (value.fileSize === null || value.fileSize === 0) context.addIssue({ code: 'custom', message: 'invalidMedia', path: ['fileSize'] });
+  else if (value.fileSize > STORY_VIDEO_SIZE_LIMIT) context.addIssue({ code: 'custom', message: 'mediaTooLarge', path: ['fileSize'] });
+});
+export const storyPublishOptionsSchema = z.object({ caption: storyCaptionSchema, audience: storyAudienceSchema });
