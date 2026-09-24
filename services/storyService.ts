@@ -1,10 +1,10 @@
 import type { z } from 'zod';
 import { supabase } from '@/lib/supabase';
 import { STORAGE_BUCKET, STORY_TRAY_LIMIT } from '@/constants';
-import { storyMediaPath, storySignedUrlTtl, storyThumbnailPath, type StoryMimeType } from '@/helpers/stories';
-import { storyAudienceSchema, storyInputSchema, storyMediaTypeSchema, uuidSchema } from '@/helpers/validation';
+import { storyErrorFromIssues, storyErrorFromService, storyMediaPath, storySignedUrlTtl, storyThumbnailPath, type StoryMimeType } from '@/helpers/stories';
+import { imageMimeTypeSchema, storyAudienceSchema, storyDraftSchema, storyInputSchema, storyMediaTypeSchema, storyPublishOptionsSchema, uuidSchema, videoMimeTypeSchema } from '@/helpers/validation';
 import { uploadFileWithProgress } from '@/services/imageService';
-import type { Profile, Story, StoryAudience, StoryTrayItem } from '@/types/domain';
+import type { Profile, Story, StoryAudience, StoryDraft, StoryErrorCode, StoryTrayItem } from '@/types/domain';
 import { toServiceError, type ServiceResult } from '@/types/result';
 
 export type StoryInput = z.input<typeof storyInputSchema>;
@@ -146,4 +146,55 @@ export async function getStoryMediaUrl(path: string, expiresAt: string): Promise
   return error || !data?.signedUrl
     ? { success: false, error: { code: 'notFound', message: 'Story unavailable', retryable: false } }
     : { success: true, data: data.signedUrl };
+}
+
+export type StoryPublishStage = 'uploading' | 'publishing';
+export type StoryPublishCallbacks = { onStage?: (stage: StoryPublishStage) => void; onProgress?: (fraction: number) => void };
+export type StoryPublishOptions = { caption?: string | null; audience: StoryAudience };
+export type StoryPublishResult = { success: true; data: Story } | { success: false; error: StoryErrorCode; retryable: boolean };
+
+const storyMimeTypeSchema = imageMimeTypeSchema.or(videoMimeTypeSchema);
+
+export async function discardStoryUploads(userId: string, storyId: string, mimeType: string): Promise<boolean> {
+  const user = uuidSchema.safeParse(userId);
+  const story = uuidSchema.safeParse(storyId);
+  const mime = storyMimeTypeSchema.safeParse(mimeType);
+  if (!user.success || !story.success || !mime.success) return false;
+  const existing = await supabase.from('stories').select('id').eq('id', story.data).maybeSingle();
+  if (existing.error || existing.data) return false;
+  const { error } = await supabase.storage.from(STORAGE_BUCKET).remove([storyMediaPath(user.data, story.data, mime.data), storyThumbnailPath(user.data, story.data, 'image/jpeg')]);
+  return !error;
+}
+
+export async function createStory(userId: string, storyId: string, draft: StoryDraft, options: StoryPublishOptions, callbacks: StoryPublishCallbacks = {}): Promise<StoryPublishResult> {
+  const parsedDraft = storyDraftSchema.safeParse(draft);
+  if (!parsedDraft.success) return { success: false, error: storyErrorFromIssues(parsedDraft.error), retryable: false };
+  const parsedOptions = storyPublishOptionsSchema.safeParse({ caption: options.caption ?? '', audience: options.audience });
+  if (!parsedOptions.success) return { success: false, error: storyErrorFromIssues(parsedOptions.error), retryable: false };
+  const mime = storyMimeTypeSchema.safeParse(parsedDraft.data.mimeType);
+  if (!mime.success || !uuidSchema.safeParse(userId).success || !uuidSchema.safeParse(storyId).success) return { success: false, error: 'invalidMedia', retryable: false };
+  const value = parsedDraft.data;
+  const mediaShare = value.thumbnailUri ? 0.9 : 1;
+  callbacks.onStage?.('uploading');
+  callbacks.onProgress?.(0);
+  const media = await uploadStoryMedia(userId, storyId, value.uri, mime.data, fraction => callbacks.onProgress?.(fraction * mediaShare));
+  if (!media.success) return { success: false, error: 'uploadFailed', retryable: media.error.retryable };
+  const thumbnail = value.thumbnailUri ? await uploadStoryThumbnail(userId, storyId, value.thumbnailUri) : null;
+  callbacks.onProgress?.(1);
+  callbacks.onStage?.('publishing');
+  const published = await publishStory({
+    id: storyId,
+    mediaType: value.mediaType,
+    mediaPath: media.data,
+    mimeType: mime.data,
+    width: value.width,
+    height: value.height,
+    duration: value.mediaType === 'video' ? value.duration : null,
+    thumbnailPath: thumbnail?.success ? thumbnail.data : null,
+    caption: parsedOptions.data.caption,
+    audience: parsedOptions.data.audience,
+  });
+  if (published.success) return published;
+  if (!published.error.retryable) await discardStoryUploads(userId, storyId, mime.data);
+  return { success: false, error: storyErrorFromService(published.error, 'publishFailed'), retryable: published.error.retryable };
 }
