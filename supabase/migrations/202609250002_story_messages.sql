@@ -14,6 +14,15 @@ alter table public.messages add constraint messages_story_context
 
 create index messages_story on public.messages (story_id, "userId", created_at desc) where story_id is not null;
 
+create function private.accepts_messages(target uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select auth.uid() is not null and target <> auth.uid() and not private.blocked(auth.uid(), target)
+    and exists(select 1 from public.user_private where id = target and allow_messages);
+$$;
+
+revoke execute on function private.accepts_messages(uuid) from public, anon;
+grant execute on function private.accepts_messages(uuid) to authenticated;
+
 create or replace function private.validate_message() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
@@ -146,3 +155,14 @@ $$;
 
 revoke execute on function public.send_story_interaction(uuid, uuid, text, text) from public, anon;
 grant execute on function public.send_story_interaction(uuid, uuid, text, text) to authenticated;
+
+create or replace function public.get_active_stories(p_author_id uuid) returns setof jsonb
+language sql stable security invoker set search_path = '' as $$
+  select public.story_document(s) || jsonb_build_object(
+    'viewed', s.author_id = auth.uid() or exists(select 1 from public.story_views v where v.story_id = s.id and v.viewer_id = auth.uid()),
+    'view_count', case when s.author_id = auth.uid() then (select count(*) from public.story_views v where v.story_id = s.id) end,
+    'can_reply', s.author_id <> auth.uid() and private.accepts_messages(s.author_id))
+  from public.stories s
+  where s.author_id = p_author_id and s.expires_at > now()
+  order by s.expires_at, s.id limit 100;
+$$;
