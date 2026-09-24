@@ -1,7 +1,3 @@
--- Deliver push jobs without a mobile-client poller or an external scheduler.
--- The queue remains the source of truth; pg_net only wakes the protected Edge
--- Function after commit, while pg_cron is a recovery and receipt-processing backstop.
-
 create extension if not exists pg_net with schema extensions;
 create extension if not exists pg_cron with schema extensions;
 
@@ -21,10 +17,6 @@ create index if not exists push_receipts_pending_check
   on private.push_receipts (next_attempt_at, created_at)
   where checked_at is null and failed_at is null;
 
--- Secrets are deliberately not embedded in a migration or sent by a client.
--- Configure these named Vault values after deployment:
---   push_dispatch_url     https://<project-ref>.supabase.co/functions/v1/dispatch-push
---   push_dispatch_secret  the same value as the Edge Function PUSH_FUNCTION_SECRET
 create or replace function private.invoke_push_dispatch(p_action text default 'dispatch') returns void
 language plpgsql security definer set search_path = '' as $$
 declare dispatch_url text; dispatch_secret text;
@@ -38,7 +30,6 @@ begin
   select decrypted_secret into dispatch_secret
   from vault.decrypted_secrets where name = 'push_dispatch_secret' limit 1;
 
-  -- Missing production configuration must never block the originating write.
   if dispatch_url is null or dispatch_secret is null then return; end if;
 
   perform net.http_post(
@@ -48,8 +39,6 @@ begin
     timeout_milliseconds := 5000
   );
 exception when others then
-  -- pg_cron will make the next bounded recovery attempt. Do not expose a Vault
-  -- value or fail a user-visible notification transaction because pg_net is down.
   raise warning 'Push dispatch wake-up could not be queued';
 end;
 $$;

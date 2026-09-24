@@ -1,7 +1,3 @@
--- Phase 2: Close Friends. The list is private to its owner: members are never
--- notified, cannot read the list, and learn of membership only by being shown a
--- Close Friends story once Stories visibility is evaluated server-side.
-
 create table public.close_friends (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references public.users(id) on delete cascade,
@@ -15,12 +11,8 @@ alter table public.close_friends enable row level security;
 revoke all on public.close_friends from anon, authenticated;
 create policy anon_denied on public.close_friends for all to anon using (false) with check (false);
 
--- The unique (owner_id, friend_id) index serves owner lookups and story checks;
--- this one serves "whose lists am I on" story trays and account-deletion cascades.
 create index close_friends_friend on public.close_friends (friend_id, owner_id);
 
--- Only accepted, unblocked followers are eligible. Stories still re-check the
--- follow at read time, so a later unfollow or block revokes access immediately.
 grant select, delete on public.close_friends to authenticated;
 grant insert (id, owner_id, friend_id) on public.close_friends to authenticated;
 create policy close_friends_read on public.close_friends for select to authenticated using (owner_id = (select auth.uid()));
@@ -50,8 +42,6 @@ language sql stable security invoker set search_path = '' as $$
   order by cf.created_at desc, cf.id desc limit greatest(1, least(p_limit, 50));
 $$;
 
--- Candidates are the caller's accepted followers, flagged with their current
--- membership, so a management screen needs a single paged query.
 create function public.search_close_friend_candidates(p_query text default '', p_after_id uuid default null, p_limit integer default 30) returns setof jsonb
 language sql stable security invoker set search_path = '' as $$
   select jsonb_build_object('id', u.id, 'name', u.name, 'username', u.username, 'image', u.image,

@@ -69,7 +69,7 @@ Native commands require a local development build and platform toolchains. EAS b
 
 ## OAuth and push notifications
 
-Configure Google and Apple OAuth redirect URLs in Supabase and set the provider flags only after the native client IDs and URL scheme are available. Push notifications require an EAS project ID, native push credentials, and `expo-notifications` configuration in a development or production build; Expo Go cannot provide all native push functionality. Push delivery is performed only by `dispatch-push` with its server-side secret.
+Configure Google and Apple OAuth redirect URLs in Supabase and set the provider flags only after the native client IDs and URL scheme are available. Push notifications require an EAS project ID, native push credentials, and `expo-notifications` configuration in a development or production build; Expo Go cannot provide all native push functionality. Push delivery is performed only by `dispatch-push` with its server-side secret. After deployment, store two Supabase Vault secrets so the database can wake the dispatcher: `push_dispatch_url` (`https://<project-ref>.supabase.co/functions/v1/dispatch-push`) and `push_dispatch_secret` (the same value as the Edge Function `PUSH_FUNCTION_SECRET`). Without them, notifications are still queued and `pg_cron` remains the recovery path.
 
 ## Privacy and legal setup
 

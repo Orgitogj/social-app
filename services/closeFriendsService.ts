@@ -45,7 +45,6 @@ export async function searchCloseFriendCandidates(query: string, afterId?: strin
   return { success: true, data: (data ?? []).map(parseCloseFriendCandidate).filter((item): item is CloseFriendCandidate => item !== null) };
 }
 
-// Adding is idempotent: an existing membership is treated as success.
 export async function addCloseFriend(ownerId: string, friendId: string): Promise<ServiceResult<void>> {
   const owner = uuidSchema.safeParse(ownerId);
   const friend = uuidSchema.safeParse(friendId);

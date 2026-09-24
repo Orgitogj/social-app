@@ -1,8 +1,3 @@
--- Phase 2: Story media in the existing private uploads bucket. Objects under
--- {author}/stories/{story}/ are uploadable only by that author, can never be
--- attached to posts, avatars, or messages, and are readable by others only while
--- private.can_view_story authorizes the story row that references them.
-
 create or replace function private.owned_object(path text, image_only boolean default false) returns boolean
 language sql stable security definer set search_path = '' as $$
   select split_part(path, '/', 1) = auth.uid()::text and split_part(path, '/', 2) <> 'stories' and exists (

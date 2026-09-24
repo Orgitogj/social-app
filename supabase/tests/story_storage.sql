@@ -4,7 +4,6 @@ select plan(28);
 select ok(not (select public from storage.buckets where id = 'uploads'), 'story media is stored in a private bucket');
 select ok(exists(select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'uploads_story_create'), 'story uploads have a dedicated ownership policy');
 
--- Author: Mia (public account). Leo is a close friend, Zoe a follower, Kai a stranger, Ben a follower who is blocked.
 insert into auth.users(id, aud, role, email, raw_app_meta_data, raw_user_meta_data, created_at, updated_at) values
   ('4a000000-0000-4000-8000-000000000001', 'authenticated', 'authenticated', 'ss-mia@example.test', '{}'::jsonb, '{"name":"Mia"}'::jsonb, now(), now()),
   ('4a000000-0000-4000-8000-000000000002', 'authenticated', 'authenticated', 'ss-leo@example.test', '{}'::jsonb, '{"name":"Leo"}'::jsonb, now(), now()),
@@ -20,7 +19,6 @@ insert into public.follows(follower_id, following_id) values ('4a000000-0000-400
 select set_config('request.jwt.claims', json_build_object('sub', '4a000000-0000-4000-8000-000000000005', 'role', 'authenticated')::text, true);
 insert into public.follows(follower_id, following_id) values ('4a000000-0000-4000-8000-000000000005', '4a000000-0000-4000-8000-000000000001');
 
--- Uploads into the author's own story namespace.
 select set_config('request.jwt.claims', json_build_object('sub', '4a000000-0000-4000-8000-000000000001', 'role', 'authenticated')::text, true);
 insert into public.close_friends(owner_id, friend_id) values ('4a000000-0000-4000-8000-000000000001', '4a000000-0000-4000-8000-000000000002');
 select lives_ok($$insert into storage.objects(bucket_id, name, owner, metadata) values ('uploads', '4a000000-0000-4000-8000-000000000001/stories/6a000000-0000-4000-8000-000000000001/media.mp4', '4a000000-0000-4000-8000-000000000001', '{"size": 4096, "mimetype": "video/mp4"}')$$, 'the author can upload story media');
@@ -36,7 +34,6 @@ select is((select count(*) from storage.objects where name like '4a000000-0000-4
 select throws_ok($$select public.create_post('6a000000-0000-4000-8000-0000000000aa', '<p>Reuse</p>', 'public', 'published', '[{"type":"image","path":"4a000000-0000-4000-8000-000000000001/stories/6a000000-0000-4000-8000-000000000002/media.jpg","mime_type":"image/jpeg","width":1,"height":1,"size_bytes":2048}]'::jsonb)$$, '42501', null, 'story media cannot be republished as public post media');
 select throws_ok($$update public.users set image = '4a000000-0000-4000-8000-000000000001/stories/6a000000-0000-4000-8000-000000000001/thumbnail.jpg' where id = '4a000000-0000-4000-8000-000000000001'$$, '42501', null, 'story media cannot become a public avatar');
 
--- Reads mirror story authorization. Signed URLs are minted only after this check.
 select set_config('request.jwt.claims', json_build_object('sub', '4a000000-0000-4000-8000-000000000002', 'role', 'authenticated')::text, true);
 select is((select count(*) from storage.objects where name like '4a000000-0000-4000-8000-000000000001/stories/%'), 3::bigint, 'a close friend can read close friends media and thumbnails');
 select set_config('request.jwt.claims', json_build_object('sub', '4a000000-0000-4000-8000-000000000003', 'role', 'authenticated')::text, true);
@@ -50,15 +47,12 @@ insert into public.blocks(blocker_id, blocked_id) values ('4a000000-0000-4000-80
 select set_config('request.jwt.claims', json_build_object('sub', '4a000000-0000-4000-8000-000000000005', 'role', 'authenticated')::text, true);
 select is((select count(*) from storage.objects where name like '4a000000-0000-4000-8000-000000000001/stories/%'), 0::bigint, 'a blocked user cannot read story media');
 
--- Other users cannot remove media; the author can. Direct SQL deletes are enabled
--- only to exercise the same row level security the Storage API applies.
 select set_config('storage.allow_delete_query', 'true', true);
 select set_config('request.jwt.claims', json_build_object('sub', '4a000000-0000-4000-8000-000000000002', 'role', 'authenticated')::text, true);
 delete from storage.objects where name = '4a000000-0000-4000-8000-000000000001/stories/6a000000-0000-4000-8000-000000000001/thumbnail.jpg';
 reset role;
 select is((select count(*) from storage.objects where name = '4a000000-0000-4000-8000-000000000001/stories/6a000000-0000-4000-8000-000000000001/thumbnail.jpg'), 1::bigint, 'a viewer cannot delete story media');
 
--- Expiry closes media access even before cleanup removes the objects.
 alter table public.stories disable trigger story_lifecycle;
 update public.stories set created_at = now() - interval '25 hours', expires_at = now() - interval '1 hour' where id = '6a000000-0000-4000-8000-000000000002';
 alter table public.stories enable trigger story_lifecycle;
@@ -66,13 +60,11 @@ set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', '4a000000-0000-4000-8000-000000000003', 'role', 'authenticated')::text, true);
 select is((select count(*) from storage.objects where name = '4a000000-0000-4000-8000-000000000001/stories/6a000000-0000-4000-8000-000000000002/media.jpg'), 0::bigint, 'expired story media is unreadable');
 
--- Uploaded but unpublished media stays private to its owner.
 select set_config('request.jwt.claims', json_build_object('sub', '4a000000-0000-4000-8000-000000000001', 'role', 'authenticated')::text, true);
 insert into storage.objects(bucket_id, name, owner, metadata) values ('uploads', '4a000000-0000-4000-8000-000000000001/stories/6a000000-0000-4000-8000-000000000004/media.jpg', '4a000000-0000-4000-8000-000000000001', '{"size": 2048, "mimetype": "image/jpeg"}');
 select set_config('request.jwt.claims', json_build_object('sub', '4a000000-0000-4000-8000-000000000002', 'role', 'authenticated')::text, true);
 select is((select count(*) from storage.objects where name like '4a000000-0000-4000-8000-000000000001/stories/6a000000-0000-4000-8000-000000000004/%'), 0::bigint, 'unpublished story uploads are private');
 
--- Losing close friend status revokes media access.
 select set_config('request.jwt.claims', json_build_object('sub', '4a000000-0000-4000-8000-000000000001', 'role', 'authenticated')::text, true);
 delete from public.close_friends where friend_id = '4a000000-0000-4000-8000-000000000002';
 select set_config('request.jwt.claims', json_build_object('sub', '4a000000-0000-4000-8000-000000000002', 'role', 'authenticated')::text, true);

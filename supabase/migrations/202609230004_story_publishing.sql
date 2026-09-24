@@ -1,6 +1,3 @@
--- Phase 2: publishing. A story row can only be created by its author, for media
--- they already uploaded into that story's own folder, with a server-set lifetime.
-
 create function private.owned_story_object(path text, image_only boolean) returns boolean
 language sql stable security definer set search_path = '' as $$
   select split_part(path, '/', 1) = auth.uid()::text and split_part(path, '/', 2) = 'stories' and exists (
@@ -10,8 +7,6 @@ language sql stable security definer set search_path = '' as $$
   );
 $$;
 
--- Retrying with the same story id is idempotent, so an interrupted publish can
--- be resumed after its uploads succeeded without creating a duplicate story.
 create function public.create_story(p_id uuid, p_media_type text, p_media_path text, p_mime_type text, p_width integer, p_height integer,
   p_duration double precision default null, p_thumbnail_path text default null, p_caption text default null, p_audience text default 'followers') returns jsonb
 language plpgsql security definer set search_path = '' as $$
