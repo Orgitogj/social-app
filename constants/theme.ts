@@ -12,6 +12,12 @@ export const theme = {
 
     rose: '#ef4444',
     roseLight: '#f87171',
+
+    storyViewed: '#C7C7C7',
+    closeFriends: '#7C3AED',
+    media: '#000000',
+    overlay: 'rgba(0, 0, 0, 0.45)',
+    overlayLight: 'rgba(255, 255, 255, 0.35)',
   },
   fonts: {
     medium: '500',

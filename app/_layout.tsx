@@ -11,6 +11,7 @@ import { fetchNotificationPreferences, unreadNotificationCount } from '@/service
 import { usePushRegistration } from '@/hooks/usePushRegistration';
 import { useIncomingNavigation } from '@/hooks/useIncomingNavigation';
 import { useUnreadMessageCount } from '@/hooks/useChat';
+import { theme } from '@/constants/theme';
 
 export default function RootLayout() {
   return <QueryClientProvider client={queryClient}><AuthProvider><MainLayout /></AuthProvider></QueryClientProvider>;
@@ -97,5 +98,7 @@ function MainLayout() {
   return <Stack screenOptions={{ headerShown: false }}>
     <Stack.Screen name="main/postDetails" options={{ presentation: 'modal' }} />
     <Stack.Screen name="main/chat" options={{ presentation: 'card' }} />
+    <Stack.Screen name="main/storyComposer" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
+    <Stack.Screen name="main/storyViewer" options={{ presentation: 'fullScreenModal', animation: 'fade', gestureEnabled: false, contentStyle: { backgroundColor: theme.colors.media } }} />
   </Stack>;
 }
