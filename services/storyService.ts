@@ -4,7 +4,7 @@ import { STORAGE_BUCKET, STORY_TRAY_LIMIT } from '@/constants';
 import { storyErrorFromIssues, storyErrorFromService, storyMediaPath, storySignedUrlTtl, storyThumbnailPath, type StoryMimeType } from '@/helpers/stories';
 import { imageMimeTypeSchema, storyAudienceSchema, storyDraftSchema, storyInputSchema, storyMediaTypeSchema, storyPublishOptionsSchema, uuidSchema, videoMimeTypeSchema } from '@/helpers/validation';
 import { uploadFileWithProgress } from '@/services/imageService';
-import type { Profile, Story, StoryAudience, StoryDraft, StoryErrorCode, StoryTrayItem } from '@/types/domain';
+import type { Profile, Story, StoryAudience, StoryDraft, StoryErrorCode, StoryTrayItem, StoryViewerEntry } from '@/types/domain';
 import { toServiceError, type ServiceResult } from '@/types/result';
 
 export type StoryInput = z.input<typeof storyInputSchema>;
@@ -157,6 +157,25 @@ export function isTransientStorageError(error: unknown): boolean {
   const value = error as { name?: unknown; status?: unknown; statusCode?: unknown };
   const status = Number(value.status ?? value.statusCode);
   return value.name === 'StorageUnknownError' || status === 408 || status === 429 || status >= 500;
+}
+
+export const STORY_VIEWERS_PAGE_SIZE = 30;
+
+export function parseStoryViewerEntry(value: unknown): StoryViewerEntry | null {
+  if (!value || typeof value !== 'object') return null;
+  const row = value as Record<string, unknown>;
+  const viewer = parseProfile(row.viewer);
+  return viewer && typeof row.viewed_at === 'string' ? { viewer, viewed_at: row.viewed_at } : null;
+}
+
+export async function fetchStoryViewers(storyId: string, cursor?: { viewed_at: string; id: string } | null): Promise<ServiceResult<{ items: StoryViewerEntry[]; nextCursor: { viewed_at: string; id: string } | null }>> {
+  const story = uuidSchema.safeParse(storyId);
+  if (!story.success) return resultFromError(story.error);
+  const { data, error } = await supabase.rpc('get_story_viewers', { p_story_id: story.data, p_before_time: cursor?.viewed_at, p_before_id: cursor?.id, p_limit: STORY_VIEWERS_PAGE_SIZE });
+  if (error) return resultFromError(error);
+  const items = (data ?? []).map(parseStoryViewerEntry).filter((item): item is StoryViewerEntry => item !== null);
+  const last = items.at(-1);
+  return { success: true, data: { items, nextCursor: items.length === STORY_VIEWERS_PAGE_SIZE && last ? { viewed_at: last.viewed_at, id: last.viewer.id } : null } };
 }
 
 export type StoryPublishStage = 'uploading' | 'publishing';

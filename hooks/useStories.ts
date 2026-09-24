@@ -1,8 +1,8 @@
 import { useCallback, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { STORY_SIGNED_URL_TTL_SECONDS, markStoryViewed, markTrayStoryViewed, orderStoryTray } from '@/helpers/stories';
-import { fetchActiveStories, fetchStoryTray, getStoryMediaUrl, recordStoryView } from '@/services/storyService';
+import { fetchActiveStories, fetchStoryTray, fetchStoryViewers, getStoryMediaUrl, recordStoryView } from '@/services/storyService';
 import { fetchCloseFriends } from '@/services/closeFriendsService';
 import type { Story, StoryTrayItem } from '@/types/domain';
 import { AppError } from '@/types/result';
@@ -15,6 +15,7 @@ export const storyKeys = {
   author: (authorId: string) => ['stories', 'author', authorId] as const,
   media: (path: string) => ['stories', 'media', path] as const,
   closeFriendsAvailable: () => ['stories', 'closeFriendsAvailable'] as const,
+  viewers: (storyId: string) => ['stories', 'viewers', storyId] as const,
 };
 
 export const authorStoriesQuery = (authorId: string) => ({
@@ -105,5 +106,20 @@ export function useCloseFriendsAvailable(enabled: boolean) {
       if (!result.success) throw new Error(result.error.message);
       return result.data.items.length > 0;
     },
+  });
+}
+
+export function useStoryViewers(storyId: string | undefined, enabled: boolean) {
+  return useInfiniteQuery({
+    queryKey: storyKeys.viewers(storyId ?? 'missing'),
+    enabled: Boolean(storyId) && enabled,
+    staleTime: 10_000,
+    initialPageParam: null as { viewed_at: string; id: string } | null,
+    queryFn: async ({ pageParam }) => {
+      const result = await fetchStoryViewers(storyId ?? '', pageParam);
+      if (!result.success) throw new AppError(result.error.code, result.error.retryable);
+      return result.data;
+    },
+    getNextPageParam: page => page.nextCursor,
   });
 }
