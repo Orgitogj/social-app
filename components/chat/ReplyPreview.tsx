@@ -1,11 +1,12 @@
 import { StyleSheet, Text, View } from 'react-native';
 import type { MessageReplyPreview } from '@/types/domain';
 import { theme } from '@/constants/theme';
+import { messagePreviewText } from '@/helpers/chat';
 
 type Props = { reply: MessageReplyPreview; label: string; onClear?: () => void };
 
 export function ReplyPreview({ reply, label, onClear }: Props) {
-  const preview = reply.deleted_at ? 'This message was deleted' : reply.text || (reply.message_type === 'image' ? 'Photo' : 'Message');
+  const preview = messagePreviewText(reply);
   return <View style={styles.container}>
     <View style={styles.copy}>
       <Text style={styles.label}>{label}</Text>

@@ -1,15 +1,16 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Avatar from '@/components/Avatar';
 import type { Conversation } from '@/types/domain';
+import { messagePreviewText } from '@/helpers/chat';
 import { relativeTime } from '@/helpers/common';
 import { theme } from '@/constants/theme';
 import { MessageStatus } from './MessageStatus';
 
 export function ConversationRow({ conversation, onPress }: { conversation: Conversation; onPress: () => void }) {
   const last = conversation.latest_message;
-  const preview = last?.deleted_at ? 'This message was deleted' : last?.text || (last?.message_type === 'image' ? 'Photo' : 'No messages yet');
   const unread = conversation.unread_count ?? 0;
   const mine = Boolean(last && conversation.other_user && last.userId !== conversation.other_user.id);
+  const preview = messagePreviewText(last, mine);
   return <Pressable accessibilityRole="button" onPress={onPress} style={styles.row}>
     <Avatar uri={conversation.other_user?.image} size={48} rounded={24} />
     <View style={styles.body}>
