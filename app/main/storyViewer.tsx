@@ -1,16 +1,19 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, ActivityIndicator, Animated, AppState, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Animated, AppState, KeyboardAvoidingView, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import StoryPlayer from '@/components/stories/StoryPlayer';
+import StoryCaption from '@/components/stories/StoryCaption';
+import StoryViewCount from '@/components/stories/StoryViewCount';
+import StoryViewersSheet from '@/components/stories/StoryViewersSheet';
 import StoryViewerHeader from '@/components/stories/StoryViewerHeader';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContexts';
 import { uuidSchema } from '@/helpers/validation';
-import { refreshStoryTray, useMarkStoryViewed } from '@/hooks/useStories';
+import { refreshStoryTray, storyKeys, useMarkStoryViewed } from '@/hooks/useStories';
 import { useStoryViewer } from '@/hooks/useStoryViewer';
 
 export default function StoryViewerScreen() {
@@ -40,8 +43,16 @@ function StoryViewer({ authorId, onClose }: { authorId: string; onClose: () => v
   const [holding, setHolding] = useState(false);
   const [manualPause, setManualPause] = useState(false);
   const [appActive, setAppActive] = useState(() => AppState.currentState !== 'background');
-  const paused = holding || manualPause || !focused || !appActive;
+  const [viewersOpen, setViewersOpen] = useState(false);
+  const paused = holding || manualPause || !focused || !appActive || viewersOpen;
   const { story, markUnavailable, revalidate } = viewer;
+  const own = Boolean(story && user && story.author_id === user.id);
+
+  const openViewers = useCallback(() => {
+    if (!story || !own) return;
+    setViewersOpen(true);
+    void client.invalidateQueries({ queryKey: storyKeys.author(story.author_id), exact: true });
+  }, [client, own, story]);
 
   useEffect(() => {
     let previous = AppState.currentState;
@@ -72,9 +83,9 @@ function StoryViewer({ authorId, onClose }: { authorId: string; onClose: () => v
 
   const [translateY] = useState(() => new Animated.Value(0));
   const [reduceMotion, setReduceMotion] = useState(false);
-  const gesture = useRef({ onClose, reduceMotion });
+  const gesture = useRef({ onClose, reduceMotion, onSwipeUp: openViewers });
 
-  useEffect(() => { gesture.current = { onClose, reduceMotion }; }, [onClose, reduceMotion]);
+  useEffect(() => { gesture.current = { onClose, reduceMotion, onSwipeUp: openViewers }; }, [onClose, openViewers, reduceMotion]);
 
   useEffect(() => {
     let active = true;
@@ -87,13 +98,18 @@ function StoryViewer({ authorId, onClose }: { authorId: string; onClose: () => v
   }, []);
 
   const [panResponder] = useState(() => PanResponder.create({
-    onMoveShouldSetPanResponderCapture: (_, state) => state.dy > 12 && Math.abs(state.dy) > Math.abs(state.dx) * 1.5,
+    onMoveShouldSetPanResponderCapture: (_, state) => Math.abs(state.dy) > 12 && Math.abs(state.dy) > Math.abs(state.dx) * 1.5,
     onPanResponderGrant: () => setHolding(true),
     onPanResponderMove: (_, state) => {
       if (!gesture.current.reduceMotion) translateY.setValue(Math.max(0, state.dy));
     },
     onPanResponderRelease: (_, state) => {
       setHolding(false);
+      if (state.dy < -80) {
+        translateY.setValue(0);
+        gesture.current.onSwipeUp();
+        return;
+      }
       if (state.dy > 120 || state.vy > 1.2) {
         gesture.current.onClose();
         return;
@@ -156,11 +172,15 @@ function StoryViewer({ authorId, onClose }: { authorId: string; onClose: () => v
           <Text style={styles.actionText}>Close</Text>
         </Pressable>
       )}
-      {story?.caption ? (
-        <View style={[styles.caption, { paddingBottom: insets.bottom + 20 }]} pointerEvents="none">
-          <Text style={styles.captionText} importantForAccessibility="no">{story.caption}</Text>
-        </View>
+      {story ? (
+        <KeyboardAvoidingView behavior="padding" style={styles.bottomArea} pointerEvents="box-none">
+          <View style={[styles.bottomPanel, { paddingBottom: insets.bottom + 12 }]}>
+            {story.caption ? <StoryCaption caption={story.caption} /> : null}
+            {own ? <StoryViewCount count={story.view_count} onPress={openViewers} /> : null}
+          </View>
+        </KeyboardAvoidingView>
       ) : null}
+      {story && own ? <StoryViewersSheet storyId={story.id} count={story.view_count} visible={viewersOpen} onClose={() => setViewersOpen(false)} /> : null}
     </Animated.View>
   );
 }
@@ -226,19 +246,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     justifyContent: 'center',
   },
-  caption: {
+  bottomArea: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    paddingTop: 16,
-    paddingHorizontal: 20,
-    backgroundColor: theme.colors.overlay,
   },
-  captionText: {
-    color: 'white',
-    fontSize: 16,
-    lineHeight: 22,
-    textAlign: 'center',
+  bottomPanel: {
+    gap: 10,
+    paddingTop: 12,
+    paddingHorizontal: 12,
   },
 });
