@@ -1,8 +1,8 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { STORY_SIGNED_URL_TTL_SECONDS, orderStoryTray } from '@/helpers/stories';
-import { fetchActiveStories, fetchStoryTray, getStoryMediaUrl } from '@/services/storyService';
+import { STORY_SIGNED_URL_TTL_SECONDS, markStoryViewed, markTrayStoryViewed, orderStoryTray } from '@/helpers/stories';
+import { fetchActiveStories, fetchStoryTray, getStoryMediaUrl, recordStoryView } from '@/services/storyService';
 import type { Story, StoryTrayItem } from '@/types/domain';
 
 export const STORY_STALE_TIME = 30_000;
@@ -65,4 +65,30 @@ export function useStoryMediaUrl(path: string | null | undefined, expiresAt: str
 
 export function refreshStoryTray(client: QueryClient) {
   return client.invalidateQueries({ queryKey: storyKeys.tray(), exact: true });
+}
+
+export function applyStoryViewed(client: QueryClient, story: Pick<Story, 'id' | 'author_id'>): boolean {
+  const current = client.getQueryData<Story[]>(storyKeys.author(story.author_id));
+  const next = markStoryViewed(current, story.id);
+  if (!current || next === current) return false;
+  client.setQueryData<Story[]>(storyKeys.author(story.author_id), next);
+  client.setQueryData<StoryTrayItem[]>(storyKeys.tray(), items => markTrayStoryViewed(items, story.author_id));
+  return true;
+}
+
+export function useMarkStoryViewed(currentUserId?: string) {
+  const client = useQueryClient();
+  const pending = useRef(new Set<string>());
+  return useCallback(async (story: Story) => {
+    if (!currentUserId || story.author_id === currentUserId || story.viewed || pending.current.has(story.id)) return;
+    pending.current.add(story.id);
+    const changed = applyStoryViewed(client, story);
+    const result = await recordStoryView(story.id);
+    pending.current.delete(story.id);
+    if (result.success) return;
+    if (changed || result.error.code === 'notAllowed') {
+      void client.invalidateQueries({ queryKey: storyKeys.author(story.author_id), exact: true });
+      void refreshStoryTray(client);
+    }
+  }, [client, currentUserId]);
 }
