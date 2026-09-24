@@ -121,3 +121,8 @@ export function markTrayStoryViewed(items: StoryTrayItem[] | undefined, authorId
   if (!items?.some(item => item.author.id === authorId && item.unviewed_count > 0)) return items;
   return items.map(item => item.author.id === authorId ? { ...item, unviewed_count: item.unviewed_count - 1 } : item);
 }
+
+export function fitWithin(width: number, height: number, maxDimension: number) {
+  const scale = Math.min(1, maxDimension / Math.max(width, height));
+  return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
+}
