@@ -64,3 +64,42 @@ begin
   return new;
 end;
 $$;
+
+create or replace function public.message_document(m public.messages) returns jsonb
+language sql stable security invoker set search_path = '' as $$
+  select jsonb_build_object(
+    'id', m.id,
+    'client_id', m.client_id,
+    'conversation_id', m.conversation_id,
+    'userId', m."userId",
+    'text', m.text,
+    'message_type', m.message_type,
+    'media_path', m.media_path,
+    'mime_type', m.mime_type,
+    'created_at', m.created_at,
+    'deleted_at', m.deleted_at,
+    'deleted_by_sender', m.deleted_by_sender,
+    'status', case when m."userId" <> auth.uid() then 'sent'
+      when receipts.last_read_at >= m.created_at then 'read'
+      when receipts.last_delivered_at >= m.created_at then 'delivered'
+      else 'sent' end,
+    'reply_to', (
+      select jsonb_build_object('id', parent.id, 'userId', parent."userId", 'text', parent.text,
+        'message_type', parent.message_type, 'media_path', parent.media_path, 'deleted_at', parent.deleted_at)
+      from public.messages parent where parent.id = m.reply_to_message_id
+    ),
+    'reactions', coalesce((
+      select jsonb_agg(jsonb_build_object('emoji', aggregate_reactions.reaction, 'count', aggregate_reactions.count, 'reacted_by_me', aggregate_reactions.reacted_by_me) order by aggregate_reactions.reaction)
+      from (
+        select r.reaction, count(*)::integer as count, bool_or(r."userId" = auth.uid()) as reacted_by_me
+        from public.message_reactions r where r.message_id = m.id group by r.reaction
+      ) aggregate_reactions
+    ), '[]'::jsonb),
+    'story', case when m.story_context is not null and m.deleted_at is null then m.story_context || coalesce((
+      select jsonb_build_object('available', true, 'preview_path', coalesce(s.thumbnail_path, case when s.media_type = 'image' then s.media_path end), 'expires_at', s.expires_at)
+      from public.stories s where s.id = m.story_id and s.expires_at > now()
+    ), jsonb_build_object('available', false, 'preview_path', null)) end
+  ) from public.conversation_members receipts
+  where receipts.conversation_id = m.conversation_id and receipts."userId" <> m."userId"
+  limit 1;
+$$;
