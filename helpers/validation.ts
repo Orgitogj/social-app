@@ -79,3 +79,8 @@ export const storyDraftSchema = z.object({
   else if (value.fileSize > STORY_VIDEO_SIZE_LIMIT) context.addIssue({ code: 'custom', message: 'mediaTooLarge', path: ['fileSize'] });
 });
 export const storyPublishOptionsSchema = z.object({ caption: storyCaptionSchema, audience: storyAudienceSchema });
+export const storyReactionSchema = messageReactionSchema;
+export const storyInteractionSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('reply'), storyId: uuidSchema, clientId: uuidSchema, text: messageTextSchema.pipe(z.string().trim().min(1, 'emptyMessage')) }),
+  z.object({ kind: z.literal('reaction'), storyId: uuidSchema, clientId: uuidSchema, text: storyReactionSchema }),
+]);
