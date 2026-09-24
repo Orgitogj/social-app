@@ -18,3 +18,13 @@ $$;
 
 revoke execute on function public.get_story_viewers(uuid, timestamptz, uuid, integer) from public, anon;
 grant execute on function public.get_story_viewers(uuid, timestamptz, uuid, integer) to authenticated;
+
+create or replace function public.get_active_stories(p_author_id uuid) returns setof jsonb
+language sql stable security invoker set search_path = '' as $$
+  select public.story_document(s) || jsonb_build_object(
+    'viewed', s.author_id = auth.uid() or exists(select 1 from public.story_views v where v.story_id = s.id and v.viewer_id = auth.uid()),
+    'view_count', case when s.author_id = auth.uid() then (select count(*) from public.story_views v where v.story_id = s.id) end)
+  from public.stories s
+  where s.author_id = p_author_id and s.expires_at > now()
+  order by s.expires_at, s.id limit 100;
+$$;
