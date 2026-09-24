@@ -8,6 +8,7 @@ import { theme } from '@/constants/theme';
 import { MessageStatus } from './MessageStatus';
 import { ReactionBar } from './ReactionBar';
 import { ReplyPreview } from './ReplyPreview';
+import StoryMessageCard from './StoryMessageCard';
 
 function MessageImage({ path }: { path: string }) {
   const [url, setUrl] = useState<string | null>(null);
@@ -34,8 +35,9 @@ export function MessageBubble({ message, mine, replyLabel, onLongPress, onReacti
     <Pressable onLongPress={() => onLongPress(message)} delayLongPress={350} onPress={() => message.status === 'failed' && onRetry(message)} style={[styles.bubble, mine ? styles.mine : styles.other, deleted && styles.deleted]}>
       {message.reply_to ? <ReplyPreview reply={message.reply_to} label={replyLabel} /> : null}
       {deleted ? <Text style={styles.deletedText}>This message was deleted</Text> : null}
+      {!deleted && message.story ? <StoryMessageCard message={message} mine={mine} /> : null}
       {!deleted && message.media_path && message.message_type === 'image' ? <MessageImage path={message.media_path} /> : null}
-      {!deleted && message.text ? <Text style={[styles.text, mine && styles.mineText]}>{message.text}</Text> : null}
+      {!deleted && message.text && message.message_type !== 'story_reaction' ? <Text style={[styles.text, mine && styles.mineText]}>{message.text}</Text> : null}
       <View style={styles.meta}>
         <Text style={styles.time}>{formatMessageTime(message.created_at)}</Text>
         {mine ? <MessageStatus status={message.status} /> : null}
