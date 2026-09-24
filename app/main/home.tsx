@@ -14,6 +14,7 @@ import PostCard from '../../components/PostCard'
 import Loading from '@/components/Loading';
 import { getUserData } from '@/services/userService';
 import { useUnreadMessageCount } from '@/hooks/useChat';
+import StoriesBar from '@/components/stories/StoriesBar';
 
 const Home = () => {
   const { user, setAuth } = useAuth();
@@ -253,6 +254,8 @@ const getPosts = async () => {
           data={posts}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listStyle}
+          ListHeaderComponent={<StoriesBar />}
+          ListHeaderComponentStyle={styles.stories}
           keyExtractor={item => item.id.toString()}
           renderItem={({ item }) => (
             <PostCard
@@ -317,6 +320,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: 18
+  },
+
+  stories: {
+    marginHorizontal: -wp(4),
+    marginBottom: 16,
   },
 
   listStyle: {
