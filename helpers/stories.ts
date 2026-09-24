@@ -1,6 +1,6 @@
 import type { z } from 'zod';
 import type { imageMimeTypeSchema, videoMimeTypeSchema } from './validation';
-import type { StoryErrorCode } from '@/types/domain';
+import type { Story, StoryErrorCode, StoryRingState, StoryTrayItem, StoryViewState } from '@/types/domain';
 import type { ServiceError } from '@/types/result';
 
 export type StoryMimeType = z.infer<typeof imageMimeTypeSchema> | z.infer<typeof videoMimeTypeSchema>;
@@ -78,3 +78,46 @@ const STORY_ERROR_MESSAGES: Record<StoryErrorCode, string> = {
 };
 
 export const storyErrorMessage = (code: StoryErrorCode) => STORY_ERROR_MESSAGES[code];
+
+export const isStoryExpired = (story: Pick<Story, 'expires_at'>, now = Date.now()) => !(new Date(story.expires_at).getTime() > now);
+
+export function storyViewState(stories: readonly Pick<Story, 'viewed'>[]): StoryViewState {
+  const viewed = stories.filter(story => story.viewed).length;
+  if (viewed === 0) return 'none';
+  return viewed === stories.length ? 'all' : 'partial';
+}
+
+export function storyRingState(item?: Pick<StoryTrayItem, 'story_count' | 'unviewed_count' | 'is_own'> | null): StoryRingState {
+  if (!item || item.story_count <= 0) return 'none';
+  if (item.is_own) return 'unviewed';
+  return item.unviewed_count > 0 ? 'unviewed' : 'viewed';
+}
+
+export function compareStoryTrayItems(a: StoryTrayItem, b: StoryTrayItem): number {
+  if (a.is_own !== b.is_own) return a.is_own ? -1 : 1;
+  const aUnviewed = a.unviewed_count > 0;
+  const bUnviewed = b.unviewed_count > 0;
+  if (aUnviewed !== bUnviewed) return aUnviewed ? -1 : 1;
+  return b.latest_story_at.localeCompare(a.latest_story_at) || a.author.id.localeCompare(b.author.id);
+}
+
+export function orderStoryTray(items: readonly StoryTrayItem[]): StoryTrayItem[] {
+  const unique = new Map<string, StoryTrayItem>();
+  for (const item of items) if (item.story_count > 0 && !unique.has(item.author.id)) unique.set(item.author.id, item);
+  return [...unique.values()].sort(compareStoryTrayItems);
+}
+
+export function firstUnviewedIndex(stories: readonly Pick<Story, 'viewed'>[]): number {
+  const index = stories.findIndex(story => !story.viewed);
+  return index === -1 ? 0 : index;
+}
+
+export function markStoryViewed(stories: Story[] | undefined, storyId: string): Story[] | undefined {
+  if (!stories?.some(story => story.id === storyId && !story.viewed)) return stories;
+  return stories.map(story => story.id === storyId ? { ...story, viewed: true } : story);
+}
+
+export function markTrayStoryViewed(items: StoryTrayItem[] | undefined, authorId: string): StoryTrayItem[] | undefined {
+  if (!items?.some(item => item.author.id === authorId && item.unviewed_count > 0)) return items;
+  return items.map(item => item.author.id === authorId ? { ...item, unviewed_count: item.unviewed_count - 1 } : item);
+}
