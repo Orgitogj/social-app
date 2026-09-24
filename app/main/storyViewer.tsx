@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -39,8 +39,20 @@ function StoryViewer({ authorId, onClose }: { authorId: string; onClose: () => v
   const [progress] = useState(() => new Animated.Value(0));
   const [holding, setHolding] = useState(false);
   const [manualPause, setManualPause] = useState(false);
-  const paused = holding || manualPause || !focused;
-  const { story, markUnavailable } = viewer;
+  const [appActive, setAppActive] = useState(() => AppState.currentState !== 'background');
+  const paused = holding || manualPause || !focused || !appActive;
+  const { story, markUnavailable, revalidate } = viewer;
+
+  useEffect(() => {
+    let previous = AppState.currentState;
+    const subscription = AppState.addEventListener('change', next => {
+      setAppActive(next === 'active');
+      if (next === 'active' && previous !== 'active') revalidate();
+      if (next !== 'active') setHolding(false);
+      previous = next;
+    });
+    return () => subscription.remove();
+  }, [revalidate]);
 
   useEffect(() => {
     if (viewer.closed) onClose();
