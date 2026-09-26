@@ -25,3 +25,22 @@ begin
   return purged;
 end;
 $$;
+
+create function private.queue_orphan_story_media(p_limit integer default 500) returns integer
+language plpgsql security definer set search_path = '' as $$
+declare queued integer;
+begin
+  insert into private.storage_cleanup(path)
+  select o.name from storage.objects o
+  where o.bucket_id = 'uploads'
+    and o.name ~ '^[0-9a-f-]{36}/stories/[0-9a-f-]{36}/(media|thumbnail)\.[a-z0-9]+$'
+    and o.created_at < now() - interval '24 hours'
+    and not exists(select 1 from public.stories s where s.media_path = o.name or s.thumbnail_path = o.name)
+    and not exists(select 1 from private.storage_cleanup c where c.path = o.name)
+  order by o.created_at
+  limit greatest(1, least(coalesce(p_limit, 500), 1000))
+  on conflict do nothing;
+  get diagnostics queued = row_count;
+  return queued;
+end;
+$$;
