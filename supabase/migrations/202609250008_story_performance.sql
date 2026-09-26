@@ -97,3 +97,24 @@ end;
 $$;
 
 revoke execute on function private.queue_orphan_story_media(integer) from public, anon, authenticated;
+
+create or replace function private.run_story_cleanup() returns void
+language plpgsql security definer set search_path = '' as $$
+declare batch integer := 500; purged integer; rounds integer := 0;
+begin
+  loop
+    purged := private.purge_expired_stories(batch);
+    rounds := rounds + 1;
+    exit when purged < batch or rounds >= 20;
+  end loop;
+  perform private.queue_orphan_story_media();
+end;
+$$;
+
+revoke execute on function private.run_story_cleanup() from public, anon, authenticated;
+
+select cron.schedule(
+  'linkup-storage-cleanup',
+  '*/5 * * * *',
+  $cron$select private.invoke_storage_cleanup();$cron$
+);
