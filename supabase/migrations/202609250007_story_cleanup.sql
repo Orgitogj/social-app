@@ -89,3 +89,45 @@ begin
   where path = any(coalesce(p_failed, '{}'::text[]));
 end;
 $$;
+
+create function private.invoke_storage_cleanup() returns void
+language plpgsql security definer set search_path = '' as $$
+declare cleanup_url text; cleanup_secret text;
+begin
+  select decrypted_secret into cleanup_url from vault.decrypted_secrets where name = 'storage_cleanup_url' limit 1;
+  select decrypted_secret into cleanup_secret from vault.decrypted_secrets where name = 'storage_cleanup_secret' limit 1;
+  if cleanup_url is null or cleanup_secret is null then return; end if;
+  if not exists(select 1 from private.storage_cleanup where failed_at is null and next_attempt_at <= now()) then return; end if;
+  perform net.http_post(
+    url := cleanup_url,
+    headers := jsonb_build_object('Content-Type', 'application/json', 'x-function-secret', cleanup_secret),
+    body := '{}'::jsonb,
+    timeout_milliseconds := 5000
+  );
+exception when others then
+  raise warning 'Storage cleanup wake-up could not be queued';
+end;
+$$;
+
+create function private.run_story_cleanup() returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  perform private.purge_expired_stories();
+  perform private.queue_orphan_story_media();
+end;
+$$;
+
+revoke execute on function private.purge_expired_stories(integer), private.queue_orphan_story_media(integer), private.invoke_storage_cleanup(), private.run_story_cleanup() from public, anon, authenticated;
+revoke execute on function public.claim_storage_cleanup(integer), public.complete_storage_cleanup(text[], text[], text) from public, anon, authenticated;
+grant execute on function public.claim_storage_cleanup(integer), public.complete_storage_cleanup(text[], text[], text) to service_role;
+
+select cron.schedule(
+  'linkup-story-cleanup',
+  '17 * * * *',
+  $cron$select private.run_story_cleanup();$cron$
+);
+select cron.schedule(
+  'linkup-storage-cleanup',
+  '*/15 * * * *',
+  $cron$select private.invoke_storage_cleanup();$cron$
+);
