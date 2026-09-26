@@ -1262,6 +1262,7 @@ export type Database = {
         Args: { p: Database["public"]["Tables"]["posts"]["Row"] }
         Returns: Json
       }
+      set_story_mute: { Args: { p_muted: boolean; p_user_id: string }; Returns: boolean }
       search_close_friend_candidates: {
         Args: { p_after_id?: string; p_limit?: number; p_query?: string }
         Returns: Json[]

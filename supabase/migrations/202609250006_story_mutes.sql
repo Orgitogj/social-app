@@ -31,3 +31,24 @@ language sql stable security invoker set search_path = '' as $$
     'stories_muted', exists(select 1 from public.mutes where "userId" = auth.uid() and muted_id = u.id and stories)
   ) from public.users u where id = p_id;
 $$;
+
+create function public.set_story_mute(p_user_id uuid, p_muted boolean) returns boolean
+language plpgsql security definer set search_path = '' as $$
+begin
+  if auth.uid() is null then raise exception 'Authentication required' using errcode = '42501'; end if;
+  if p_user_id is null or p_user_id = auth.uid() or not exists(select 1 from public.users where id = p_user_id) then
+    raise exception 'User is unavailable' using errcode = '42501';
+  end if;
+  if p_muted then
+    insert into public.mutes("userId", muted_id, posts, stories) values (auth.uid(), p_user_id, false, true)
+    on conflict ("userId", muted_id) do update set stories = true;
+  else
+    update public.mutes set stories = false where "userId" = auth.uid() and muted_id = p_user_id and posts;
+    delete from public.mutes where "userId" = auth.uid() and muted_id = p_user_id and not posts;
+  end if;
+  return p_muted;
+end;
+$$;
+
+revoke execute on function public.set_story_mute(uuid, boolean) from public, anon;
+grant execute on function public.set_story_mute(uuid, boolean) to authenticated;
