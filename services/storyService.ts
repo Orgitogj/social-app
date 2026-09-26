@@ -107,7 +107,7 @@ export function parseStoryTrayItem(value: unknown): StoryTrayItem | null {
   const storyCount = Number(row.story_count);
   const unviewedCount = Number(row.unviewed_count);
   if (!author || !Number.isInteger(storyCount) || storyCount < 1 || !Number.isInteger(unviewedCount) || unviewedCount < 0 || unviewedCount > storyCount || typeof row.latest_story_at !== 'string') return null;
-  return { author, story_count: storyCount, unviewed_count: unviewedCount, latest_story_at: row.latest_story_at, has_close_friends: row.has_close_friends === true, is_own: row.is_own === true };
+  return { author, story_count: storyCount, unviewed_count: unviewedCount, latest_story_at: row.latest_story_at, has_close_friends: row.has_close_friends === true, is_own: row.is_own === true, muted: row.muted === true, next_expires_at: typeof row.next_expires_at === 'string' ? row.next_expires_at : null };
 }
 
 export async function fetchStoryTray(limit = STORY_TRAY_LIMIT): Promise<ServiceResult<StoryTrayItem[]>> {
