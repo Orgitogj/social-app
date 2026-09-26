@@ -1,4 +1,4 @@
-import { createPausableTimer, nextExpiryDelay, nextStep, playableStories, previousStep, resolveStoryIndex, startCursor, storyDurationMs } from '@/helpers/storyViewer';
+import { createPausableTimer, nextExpiryDelay, nextStep, playableStories, previousStep, resolveStoryIndex, startCursor } from '@/helpers/storyViewer';
 import type { Story } from '@/types/domain';
 import { viewerAuthors } from '@/hooks/useStoryViewer';
 
@@ -69,12 +69,6 @@ describe('inaccessible and expiring stories', () => {
 
 describe('story timing', () => {
   afterEach(() => jest.useRealTimers());
-
-  it('uses a fixed image duration and the real video duration', () => {
-    expect(storyDurationMs(story('a1'), 5000)).toBe(5000);
-    expect(storyDurationMs(story('v1', { media_type: 'video', duration: 30 }), 5000, 12.5)).toBe(12_500);
-    expect(storyDurationMs(story('v1', { media_type: 'video', duration: 30 }), 5000, 0)).toBeNull();
-  });
 
   it('pauses and resumes without losing elapsed time', () => {
     jest.useFakeTimers({ now });

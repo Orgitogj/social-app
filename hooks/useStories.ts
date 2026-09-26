@@ -1,8 +1,9 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useInfiniteQuery, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { STORY_SIGNED_URL_TTL_SECONDS, markStoryViewed, markTrayStoryViewed, orderStoryTray } from '@/helpers/stories';
-import { fetchActiveStories, fetchStoryTray, fetchStoryViewers, getStoryMediaUrl, recordStoryView } from '@/services/storyService';
+import { STORY_SIGNED_URL_TTL_SECONDS, markStoryViewed, markTrayStoryViewed, nextTrayExpiry, orderStoryTray } from '@/helpers/stories';
+import { nextExpiryDelay } from '@/helpers/storyViewer';
+import { fetchActiveStories, fetchStory, fetchStoryMute, fetchStoryTray, fetchStoryViewers, getStoryMediaUrl, recordStoryView, setStoryMute } from '@/services/storyService';
 import { fetchCloseFriends } from '@/services/closeFriendsService';
 import type { Story, StoryTrayItem } from '@/types/domain';
 import { AppError } from '@/types/result';
@@ -16,6 +17,8 @@ export const storyKeys = {
   media: (path: string) => ['stories', 'media', path] as const,
   closeFriendsAvailable: () => ['stories', 'closeFriendsAvailable'] as const,
   viewers: (storyId: string) => ['stories', 'viewers', storyId] as const,
+  story: (storyId: string) => ['stories', 'story', storyId] as const,
+  mute: (userId: string) => ['stories', 'mute', userId] as const,
 };
 
 export const authorStoriesQuery = (authorId: string) => ({
@@ -51,7 +54,13 @@ export function useStoryTray(userId?: string) {
       return orderStoryTray(result.data);
     },
   });
-  const { refetch, dataUpdatedAt, isFetching } = query;
+  const { refetch, dataUpdatedAt, isFetching, data } = query;
+  useEffect(() => {
+    const delay = nextTrayExpiry(data);
+    if (delay === null) return;
+    const timeout = setTimeout(() => { void refetch(); }, delay);
+    return () => clearTimeout(timeout);
+  }, [data, refetch]);
   useFocusEffect(useCallback(() => {
     if (userId && !isFetching && dataUpdatedAt > 0 && Date.now() - dataUpdatedAt > STORY_STALE_TIME) void refetch();
   }, [dataUpdatedAt, isFetching, refetch, userId]));
@@ -122,4 +131,59 @@ export function useStoryViewers(storyId: string | undefined, enabled: boolean) {
     },
     getNextPageParam: page => page.nextCursor,
   });
+}
+
+export function useStory(storyId: string | undefined) {
+  return useQuery({
+    queryKey: storyKeys.story(storyId ?? 'missing'),
+    enabled: Boolean(storyId),
+    staleTime: 0,
+    retry: false,
+    queryFn: async (): Promise<Story | null> => {
+      const result = await fetchStory(storyId ?? '');
+      if (!result.success) throw new AppError(result.error.code, result.error.retryable);
+      return result.data;
+    },
+  });
+}
+
+export function useExpiryClock(stories: readonly Pick<Story, 'expires_at'>[] | undefined) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const delay = nextExpiryDelay(stories ?? [], Date.now());
+    if (delay === null) return;
+    const timeout = setTimeout(() => setNow(Date.now()), delay);
+    return () => clearTimeout(timeout);
+  }, [now, stories]);
+  return now;
+}
+
+export function applyStoryMute(client: QueryClient, userId: string, muted: boolean) {
+  client.setQueryData<boolean>(storyKeys.mute(userId), muted);
+  client.setQueryData<StoryTrayItem[]>(storyKeys.tray(), items => items ? orderStoryTray(items.map(item => item.author.id === userId ? { ...item, muted } : item)) : items);
+}
+
+export const storyMuteQuery = (userId: string) => ({
+  queryKey: storyKeys.mute(userId),
+  staleTime: STORY_STALE_TIME,
+  queryFn: async (): Promise<boolean> => {
+    const result = await fetchStoryMute(userId);
+    if (!result.success) throw new AppError(result.error.code, result.error.retryable);
+    return result.data;
+  },
+});
+
+export function useStoryMute(userId: string | undefined, enabled: boolean) {
+  const client = useQueryClient();
+  const query = useQuery({ ...storyMuteQuery(userId ?? 'missing'), enabled: Boolean(userId) && enabled });
+  const load = useCallback(async () => userId ? client.fetchQuery(storyMuteQuery(userId)) : false, [client, userId]);
+  const setMuted = useCallback(async (muted: boolean) => {
+    if (!userId) return false;
+    const previous = client.getQueryData<boolean>(storyKeys.mute(userId)) ?? false;
+    applyStoryMute(client, userId, muted);
+    const result = await setStoryMute(userId, muted);
+    if (!result.success) applyStoryMute(client, userId, previous);
+    return result.success;
+  }, [client, userId]);
+  return { muted: query.data === true, isLoading: query.isPending && Boolean(userId) && enabled, setMuted, load };
 }

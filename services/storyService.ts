@@ -107,7 +107,7 @@ export function parseStoryTrayItem(value: unknown): StoryTrayItem | null {
   const storyCount = Number(row.story_count);
   const unviewedCount = Number(row.unviewed_count);
   if (!author || !Number.isInteger(storyCount) || storyCount < 1 || !Number.isInteger(unviewedCount) || unviewedCount < 0 || unviewedCount > storyCount || typeof row.latest_story_at !== 'string') return null;
-  return { author, story_count: storyCount, unviewed_count: unviewedCount, latest_story_at: row.latest_story_at, has_close_friends: row.has_close_friends === true, is_own: row.is_own === true };
+  return { author, story_count: storyCount, unviewed_count: unviewedCount, latest_story_at: row.latest_story_at, has_close_friends: row.has_close_friends === true, is_own: row.is_own === true, muted: row.muted === true, next_expires_at: typeof row.next_expires_at === 'string' ? row.next_expires_at : null };
 }
 
 export async function fetchStoryTray(limit = STORY_TRAY_LIMIT): Promise<ServiceResult<StoryTrayItem[]>> {
@@ -239,4 +239,27 @@ export async function createStory(userId: string, storyId: string, draft: StoryD
   if (published.success) return published;
   if (!published.error.retryable) await discardStoryUploads(userId, storyId, mime.data);
   return { success: false, error: storyErrorFromService(published.error, 'publishFailed'), retryable: published.error.retryable };
+}
+
+export async function fetchStory(storyId: string): Promise<ServiceResult<Story | null>> {
+  const story = uuidSchema.safeParse(storyId);
+  if (!story.success) return { success: true, data: null };
+  const { data, error } = await supabase.rpc('get_story', { p_story_id: story.data });
+  if (error) return resultFromError(error);
+  return { success: true, data: data ? parseStory(data) : null };
+}
+
+export async function fetchStoryMute(userId: string): Promise<ServiceResult<boolean>> {
+  const user = uuidSchema.safeParse(userId);
+  if (!user.success) return resultFromError(user.error);
+  const { data, error } = await supabase.from('mutes').select('stories').eq('muted_id', user.data).maybeSingle();
+  if (error) return resultFromError(error);
+  return { success: true, data: data?.stories === true };
+}
+
+export async function setStoryMute(userId: string, muted: boolean): Promise<ServiceResult<boolean>> {
+  const user = uuidSchema.safeParse(userId);
+  if (!user.success) return resultFromError(user.error);
+  const { data, error } = await supabase.rpc('set_story_mute', { p_user_id: user.data, p_muted: muted });
+  return error ? resultFromError(error) : { success: true, data: data === true };
 }

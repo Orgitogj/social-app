@@ -30,12 +30,6 @@ export function previousStep(cursor: StoryCursor, stories: readonly Story[], ind
   return { type: 'restart' };
 }
 
-export function storyDurationMs(story: Pick<Story, 'media_type' | 'duration'>, imageDurationMs: number, playerDurationSeconds?: number | null): number | null {
-  if (story.media_type === 'image') return imageDurationMs;
-  if (playerDurationSeconds && Number.isFinite(playerDurationSeconds) && playerDurationSeconds > 0) return playerDurationSeconds * 1000;
-  return null;
-}
-
 export function nextExpiryDelay(stories: readonly Pick<Story, 'expires_at'>[], now = Date.now()): number | null {
   let soonest: number | null = null;
   for (const story of stories) {

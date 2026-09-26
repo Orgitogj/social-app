@@ -8,12 +8,13 @@ import { wp, hp } from '@/helpers/common'
 import { theme } from '@/constants/theme'
 import Icon from '../../assets/icons'
 import { supabase } from '@/lib/supabase'
-import Avatar from '@/components/Avatar'
 import { fetchPosts } from '@/services/postService'
 import { getUserData } from '@/services/userService'
 import { startConversation } from '@/services/chatService'
 import { unregisterPushToken } from '@/services/pushService'
 import PostCard from '@/components/PostCard'
+import ProfileStoryAvatar from '@/components/stories/ProfileStoryAvatar'
+import { useStoryMute } from '@/hooks/useStories'
 import Loading from '@/components/Loading'
 
 const PAGE_SIZE = 4;
@@ -249,6 +250,20 @@ type UserHeaderProps = {
   handleLogout: () => void;
   isOwnProfile: boolean;
 };
+const StoryMuteButton = ({ userId }: { userId: string }) => {
+  const mute = useStoryMute(userId, true);
+  const label = mute.muted ? 'Unmute stories' : 'Mute stories';
+  const toggle = async () => {
+    const saved = await mute.setMuted(!mute.muted);
+    if (!saved) Alert.alert('Stories', 'This setting could not be saved. Try again.');
+  };
+  return (
+    <TouchableOpacity style={styles.settingsButton} onPress={() => { void toggle(); }} disabled={mute.isLoading} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ checked: mute.muted, disabled: mute.isLoading }}>
+      <Text style={styles.settingsButtonText}>{label}</Text>
+    </TouchableOpacity>
+  );
+};
+
 const UserHeader = ({ user, router, handleLogout, isOwnProfile }: UserHeaderProps) => {
   const startChat = async () => {
     if (!user?.id) return;
@@ -277,10 +292,13 @@ const UserHeader = ({ user, router, handleLogout, isOwnProfile }: UserHeaderProp
       <View style={styles.container}>
         <View style={{ gap: 20 }}>
           <View style={styles.avatarContainer}>
-            <Avatar
-              uri={user?.image}
+            <ProfileStoryAvatar
+              userId={user?.id}
+              name={user?.name}
+              image={user?.image}
               size={hp(12)}
               rounded={theme.radius.xxl * 1.4}
+              own={isOwnProfile}
             />
 
             {isOwnProfile && (
@@ -303,6 +321,7 @@ const UserHeader = ({ user, router, handleLogout, isOwnProfile }: UserHeaderProp
            </View>
 
            {!isOwnProfile && <TouchableOpacity style={styles.messageButton} onPress={() => { void startChat(); }}><Text style={styles.messageButtonText}>Message</Text></TouchableOpacity>}
+           {!isOwnProfile && user?.id ? <StoryMuteButton userId={user.id} /> : null}
            {isOwnProfile && <TouchableOpacity style={styles.settingsButton} onPress={() => router.push('/main/notificationSettings')}><Text style={styles.settingsButtonText}>Notification settings</Text></TouchableOpacity>}
 
           <View style={styles.info}>

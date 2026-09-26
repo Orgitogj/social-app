@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, ActivityIndicator, Animated, AppState, KeyboardAvoidingView, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Alert, Animated, AppState, KeyboardAvoidingView, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
-import StoryPlayer from '@/components/stories/StoryPlayer';
+import StoryPlayer, { isTransientMediaError } from '@/components/stories/StoryPlayer';
+import StoryUnavailable from '@/components/stories/StoryUnavailable';
 import StoryCaption from '@/components/stories/StoryCaption';
 import StoryInteractionStatus from '@/components/stories/StoryInteractionStatus';
 import StoryReactionBar from '@/components/stories/StoryReactionBar';
@@ -16,13 +17,16 @@ import StoryViewerHeader from '@/components/stories/StoryViewerHeader';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContexts';
 import { uuidSchema } from '@/helpers/validation';
-import { refreshStoryTray, storyKeys, useMarkStoryViewed } from '@/hooks/useStories';
+import { refreshStoryTray, storyKeys, useMarkStoryViewed, useStory, useStoryMute } from '@/hooks/useStories';
 import { useStoryInteraction } from '@/hooks/useStoryInteraction';
-import { useStoryViewer } from '@/hooks/useStoryViewer';
+import { useStoryViewer, type StoryViewerScope } from '@/hooks/useStoryViewer';
 
 export default function StoryViewerScreen() {
-  const params = useLocalSearchParams<{ authorId?: string }>();
+  const params = useLocalSearchParams<{ authorId?: string; storyId?: string; scope?: string }>();
   const authorId = uuidSchema.safeParse(params.authorId);
+  const linked = params.storyId !== undefined;
+  const storyId = uuidSchema.safeParse(params.storyId);
+  const scope: StoryViewerScope = params.scope === 'author' ? 'author' : 'tray';
   const router = useRouter();
   const close = useCallback(() => {
     if (router.canGoBack()) router.back();
@@ -30,18 +34,29 @@ export default function StoryViewerScreen() {
   }, [router]);
 
   useEffect(() => {
-    if (!authorId.success) close();
-  }, [authorId.success, close]);
+    if (!linked && !authorId.success) close();
+  }, [authorId.success, close, linked]);
 
-  return authorId.success ? <StoryViewer authorId={authorId.data} onClose={close} /> : <View style={styles.screen} />;
+  if (linked) return storyId.success ? <LinkedStory storyId={storyId.data} onClose={close} /> : <StoryUnavailable onClose={close} />;
+  return authorId.success ? <StoryViewer authorId={authorId.data} scope={scope} onClose={close} /> : <View style={styles.screen} />;
 }
 
-function StoryViewer({ authorId, onClose }: { authorId: string; onClose: () => void }) {
+function LinkedStory({ storyId, onClose }: { storyId: string; onClose: () => void }) {
+  const story = useStory(storyId);
+  if (story.isPending) return <StoryUnavailable onClose={onClose} loading />;
+  if (story.isError) return isTransientMediaError(story.error) ? <StoryUnavailable onClose={onClose} onRetry={() => { void story.refetch(); }} /> : <StoryUnavailable onClose={onClose} />;
+  if (!story.data) return <StoryUnavailable onClose={onClose} />;
+  return <StoryViewer authorId={story.data.author_id} scope="author" initialStoryId={storyId} onClose={onClose} />;
+}
+
+type StoryViewerProps = { authorId: string; scope: StoryViewerScope; initialStoryId?: string; onClose: () => void };
+
+function StoryViewer({ authorId, scope, initialStoryId, onClose }: StoryViewerProps) {
   const { user } = useAuth();
   const client = useQueryClient();
   const insets = useSafeAreaInsets();
   const focused = useIsFocused();
-  const viewer = useStoryViewer(authorId);
+  const viewer = useStoryViewer(authorId, { scope, initialStoryId });
   const markViewed = useMarkStoryViewed(user?.id);
   const [progress] = useState(() => new Animated.Value(0));
   const [holding, setHolding] = useState(false);
@@ -49,11 +64,29 @@ function StoryViewer({ authorId, onClose }: { authorId: string; onClose: () => v
   const [appActive, setAppActive] = useState(() => AppState.currentState !== 'background');
   const [viewersOpen, setViewersOpen] = useState(false);
   const [replyFocused, setReplyFocused] = useState(false);
-  const paused = holding || manualPause || !focused || !appActive || viewersOpen || replyFocused;
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const paused = holding || manualPause || !focused || !appActive || viewersOpen || replyFocused || optionsOpen;
   const { story, markUnavailable, revalidate } = viewer;
   const own = Boolean(story && user && story.author_id === user.id);
   const interaction = useStoryInteraction(story && !own ? story.id : undefined);
   const { reset: resetInteraction } = interaction;
+  const authorMute = useStoryMute(story && !own ? story.author_id : undefined, false);
+
+  const openOptions = useCallback(async () => {
+    if (!story || own) return;
+    const done = () => setOptionsOpen(false);
+    setOptionsOpen(true);
+    const muted = await authorMute.load().catch(() => null);
+    if (muted === null) {
+      done();
+      Alert.alert(story.author?.name ?? 'Story', 'Story options are unavailable right now.');
+      return;
+    }
+    Alert.alert(story.author?.name ?? 'Story', undefined, [
+      { text: muted ? 'Unmute stories' : 'Mute stories', onPress: () => { void authorMute.setMuted(!muted); done(); } },
+      { text: 'Cancel', style: 'cancel', onPress: done },
+    ], { cancelable: true, onDismiss: done });
+  }, [authorMute, own, story]);
 
   useEffect(() => { resetInteraction(); }, [resetInteraction, story?.id]);
 
@@ -132,6 +165,8 @@ function StoryViewer({ authorId, onClose }: { authorId: string; onClose: () => v
     },
   }));
 
+  if (viewer.storyMissing) return <StoryUnavailable onClose={onClose} />;
+
   return (
     <Animated.View style={[styles.screen, { transform: [{ translateY }] }]} {...panResponder.panHandlers}>
       <StatusBar hidden />
@@ -174,7 +209,7 @@ function StoryViewer({ authorId, onClose }: { authorId: string; onClose: () => v
       ) : null}
       {story && viewer.index !== null ? (
         <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-          <StoryViewerHeader story={story} count={viewer.count} index={viewer.index} progress={progress} paused={paused} onTogglePause={togglePause} onClose={onClose} />
+          <StoryViewerHeader story={story} count={viewer.count} index={viewer.index} progress={progress} paused={paused} onTogglePause={togglePause} onClose={onClose} onOptions={own ? undefined : () => { void openOptions(); }} />
         </View>
       ) : (
         <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Close stories" style={[styles.fallbackClose, { top: insets.top + 8 }]}>

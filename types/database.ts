@@ -543,18 +543,24 @@ export type Database = {
           created_at: string
           id: string
           muted_id: string
+          posts: boolean
+          stories: boolean
           userId: string
         }
         Insert: {
           created_at?: string
           id?: string
           muted_id: string
+          posts?: boolean
+          stories?: boolean
           userId: string
         }
         Update: {
           created_at?: string
           id?: string
           muted_id?: string
+          posts?: boolean
+          stories?: boolean
           userId?: string
         }
         Relationships: [
@@ -1156,6 +1162,11 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_storage_cleanup: { Args: { p_limit?: number }; Returns: { path: string }[] }
+      complete_storage_cleanup: {
+        Args: { p_error?: string; p_failed?: string[]; p_removed: string[] }
+        Returns: undefined
+      }
       create_post: {
         Args: {
           p_body: string
@@ -1185,6 +1196,7 @@ export type Database = {
       get_conversation: { Args: { p_conversation_id: string }; Returns: Json }
       get_message: { Args: { p_message_id: string }; Returns: Json }
       get_active_stories: { Args: { p_author_id: string }; Returns: Json[] }
+      get_story: { Args: { p_story_id: string }; Returns: Json }
       get_story_tray: { Args: { p_limit?: number }; Returns: Json[] }
       get_story_viewers: {
         Args: { p_before_id?: string; p_before_time?: string; p_limit?: number; p_story_id: string }
@@ -1255,6 +1267,7 @@ export type Database = {
         Args: { p: Database["public"]["Tables"]["posts"]["Row"] }
         Returns: Json
       }
+      set_story_mute: { Args: { p_muted: boolean; p_user_id: string }; Returns: boolean }
       search_close_friend_candidates: {
         Args: { p_after_id?: string; p_limit?: number; p_query?: string }
         Returns: Json[]

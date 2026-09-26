@@ -89,6 +89,7 @@ export function storyRingState(item?: Pick<StoryTrayItem, 'story_count' | 'unvie
 
 export function compareStoryTrayItems(a: StoryTrayItem, b: StoryTrayItem): number {
   if (a.is_own !== b.is_own) return a.is_own ? -1 : 1;
+  if (Boolean(a.muted) !== Boolean(b.muted)) return a.muted ? 1 : -1;
   const aUnviewed = a.unviewed_count > 0;
   const bUnviewed = b.unviewed_count > 0;
   if (aUnviewed !== bUnviewed) return aUnviewed ? -1 : 1;
@@ -119,4 +120,20 @@ export function markTrayStoryViewed(items: StoryTrayItem[] | undefined, authorId
 export function fitWithin(width: number, height: number, maxDimension: number) {
   const scale = Math.min(1, maxDimension / Math.max(width, height));
   return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
+}
+
+export function storyListRingState(stories: readonly Pick<Story, 'viewed' | 'expires_at'>[] | undefined, own: boolean, now = Date.now()): StoryRingState {
+  const active = (stories ?? []).filter(story => !isStoryExpired(story, now));
+  if (!active.length) return 'none';
+  if (own) return 'unviewed';
+  return active.some(story => !story.viewed) ? 'unviewed' : 'viewed';
+}
+
+export function nextTrayExpiry(items: readonly Pick<StoryTrayItem, 'next_expires_at'>[] | undefined, now = Date.now()): number | null {
+  let soonest: number | null = null;
+  for (const item of items ?? []) {
+    const remaining = item.next_expires_at ? new Date(item.next_expires_at).getTime() - now : NaN;
+    if (Number.isFinite(remaining) && remaining > 0 && (soonest === null || remaining < soonest)) soonest = remaining;
+  }
+  return soonest === null ? null : Math.min(soonest + 1000, 2_147_483_647);
 }

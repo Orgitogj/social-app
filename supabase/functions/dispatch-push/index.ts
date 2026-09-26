@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { channelFor, notificationBody } from './format.ts';
 
 type PushJob = { notification_id: string; token: string | null; notification_type: string; sender_name: string | null; message_preview: string | null; data: Record<string, unknown>; message_previews: boolean };
 type ExpoTicket = { status?: string; id?: string; details?: { error?: string } };
@@ -23,12 +24,6 @@ function receiptMap(value: unknown): Record<string, ExpoReceipt> {
   Object.entries(value.data).forEach(([id, item]) => { if (isRecord(item)) receipts[id] = { status: typeof item.status === 'string' ? item.status : undefined, details: isRecord(item.details) && typeof item.details.error === 'string' ? { error: item.details.error } : undefined }; });
   return receipts;
 }
-function notificationBody(job: PushJob) {
-  if (job.notification_type === 'message') return job.message_previews ? job.message_preview ?? 'New message' : 'New message';
-  const labels: Record<string, string> = { like: 'liked your post', comment: 'commented on your post', reply: 'replied to your comment', mention: 'mentioned you', follow: 'started following you', follow_request: 'requested to follow you', follow_accepted: 'accepted your follow request' };
-  return labels[job.notification_type] ?? 'You have a new notification';
-}
-function channelFor(type: string) { return type === 'message' ? 'messages' : ['like', 'comment', 'reply', 'mention', 'follow', 'follow_request', 'follow_accepted'].includes(type) ? 'social-activity' : 'general'; }
 async function sendExpo(messages: Record<string, unknown>[]) {
   const response = await fetch('https://exp.host/--/api/v2/push/send', { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify(messages) });
   if (!response.ok) throw new Error(`Expo push request failed with ${response.status}`);
