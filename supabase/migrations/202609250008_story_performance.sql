@@ -1,0 +1,59 @@
+create function private.story_visible_authors() returns setof uuid
+language sql stable security definer set search_path = '' as $$
+  with me as (select auth.uid() as id)
+  select f.following_id from me
+  join public.follows f on f.follower_id = me.id and f.status = 'accepted'
+  where not exists(
+    select 1 from public.blocks b
+    where (b.blocker_id = me.id and b.blocked_id = f.following_id) or (b.blocker_id = f.following_id and b.blocked_id = me.id)
+  );
+$$;
+
+create function private.story_close_friend_owners() returns setof uuid
+language sql stable security definer set search_path = '' as $$
+  with me as (select auth.uid() as id)
+  select cf.owner_id from me
+  join public.close_friends cf on cf.friend_id = me.id
+  where exists(select 1 from public.stories s where s.author_id = cf.owner_id and s.audience = 'close_friends' and s.expires_at > now());
+$$;
+
+revoke execute on function private.story_visible_authors(), private.story_close_friend_owners() from public, anon;
+grant execute on function private.story_visible_authors(), private.story_close_friend_owners() to authenticated;
+
+alter policy stories_read on public.stories using (
+  author_id = (select auth.uid())
+  or (
+    expires_at > now()
+    and author_id in (select private.story_visible_authors())
+    and (audience = 'followers' or author_id in (select private.story_close_friend_owners()))
+  )
+);
+
+create or replace function public.get_story_tray(p_limit integer default 50) returns setof jsonb
+language sql stable security invoker set search_path = '' as $$
+  with me as (select auth.uid() as id), authors as (
+    select me.id from me where me.id is not null
+    union
+    select f.following_id from me join public.follows f on f.follower_id = me.id and f.status = 'accepted'
+  ), active as (
+    select s.author_id, s.audience, s.created_at, s.expires_at,
+      s.author_id <> me.id and not exists(select 1 from public.story_views v where v.story_id = s.id and v.viewer_id = me.id) as unviewed
+    from me
+    cross join authors a
+    cross join lateral (select st.* from public.stories st where st.author_id = a.id and st.expires_at > now()) s
+  ), grouped as (
+    select author_id, count(*) as story_count, count(*) filter (where unviewed) as unviewed_count,
+      max(created_at) as latest_story_at, min(expires_at) as next_expires_at, bool_or(audience = 'close_friends') as has_close_friends
+    from active group by author_id
+  ), summarized as (
+    select g.*, g.author_id <> me.id and exists(select 1 from public.mutes m where m."userId" = me.id and m.muted_id = g.author_id and m.stories) as muted
+    from grouped g cross join me
+  )
+  select jsonb_build_object(
+    'author', jsonb_build_object('id', u.id, 'name', u.name, 'username', u.username, 'image', u.image),
+    'story_count', s.story_count, 'unviewed_count', s.unviewed_count, 'latest_story_at', s.latest_story_at,
+    'next_expires_at', s.next_expires_at, 'has_close_friends', s.has_close_friends, 'is_own', s.author_id = me.id, 'muted', s.muted)
+  from summarized s cross join me join public.users u on u.id = s.author_id
+  order by s.author_id = me.id desc, s.muted, s.unviewed_count > 0 desc, s.latest_story_at desc, s.author_id
+  limit greatest(1, least(coalesce(p_limit, 50), 100));
+$$;
