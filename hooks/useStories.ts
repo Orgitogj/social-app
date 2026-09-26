@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useInfiniteQuery, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { STORY_SIGNED_URL_TTL_SECONDS, markStoryViewed, markTrayStoryViewed, nextTrayExpiry, orderStoryTray } from '@/helpers/stories';
-import { fetchActiveStories, fetchStory, fetchStoryTray, fetchStoryViewers, getStoryMediaUrl, recordStoryView } from '@/services/storyService';
+import { fetchActiveStories, fetchStory, fetchStoryMute, fetchStoryTray, fetchStoryViewers, getStoryMediaUrl, recordStoryView, setStoryMute } from '@/services/storyService';
 import { fetchCloseFriends } from '@/services/closeFriendsService';
 import type { Story, StoryTrayItem } from '@/types/domain';
 import { AppError } from '@/types/result';
@@ -17,6 +17,7 @@ export const storyKeys = {
   closeFriendsAvailable: () => ['stories', 'closeFriendsAvailable'] as const,
   viewers: (storyId: string) => ['stories', 'viewers', storyId] as const,
   story: (storyId: string) => ['stories', 'story', storyId] as const,
+  mute: (userId: string) => ['stories', 'mute', userId] as const,
 };
 
 export const authorStoriesQuery = (authorId: string) => ({
@@ -143,4 +144,34 @@ export function useStory(storyId: string | undefined) {
       return result.data;
     },
   });
+}
+
+export function applyStoryMute(client: QueryClient, userId: string, muted: boolean) {
+  client.setQueryData<boolean>(storyKeys.mute(userId), muted);
+  client.setQueryData<StoryTrayItem[]>(storyKeys.tray(), items => items ? orderStoryTray(items.map(item => item.author.id === userId ? { ...item, muted } : item)) : items);
+}
+
+export const storyMuteQuery = (userId: string) => ({
+  queryKey: storyKeys.mute(userId),
+  staleTime: STORY_STALE_TIME,
+  queryFn: async (): Promise<boolean> => {
+    const result = await fetchStoryMute(userId);
+    if (!result.success) throw new AppError(result.error.code, result.error.retryable);
+    return result.data;
+  },
+});
+
+export function useStoryMute(userId: string | undefined, enabled: boolean) {
+  const client = useQueryClient();
+  const query = useQuery({ ...storyMuteQuery(userId ?? 'missing'), enabled: Boolean(userId) && enabled });
+  const load = useCallback(async () => userId ? client.fetchQuery(storyMuteQuery(userId)) : false, [client, userId]);
+  const setMuted = useCallback(async (muted: boolean) => {
+    if (!userId) return false;
+    const previous = client.getQueryData<boolean>(storyKeys.mute(userId)) ?? false;
+    applyStoryMute(client, userId, muted);
+    const result = await setStoryMute(userId, muted);
+    if (!result.success) applyStoryMute(client, userId, previous);
+    return result.success;
+  }, [client, userId]);
+  return { muted: query.data === true, isLoading: query.isPending && Boolean(userId) && enabled, setMuted, load };
 }
