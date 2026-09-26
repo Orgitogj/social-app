@@ -1,7 +1,7 @@
 import React, { memo } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { HugeiconsIcon } from '@hugeicons/react-native';
-import { Cancel01Icon, PauseIcon, PlayIcon } from '@hugeicons/core-free-icons';
+import { Cancel01Icon, MoreHorizontalIcon, PauseIcon, PlayIcon } from '@hugeicons/core-free-icons';
 import Avatar from '@/components/Avatar';
 import StoryProgressBar from '@/components/stories/StoryProgressBar';
 import { theme } from '@/constants/theme';
@@ -16,9 +16,10 @@ type StoryViewerHeaderProps = {
   paused: boolean;
   onTogglePause: () => void;
   onClose: () => void;
+  onOptions?: () => void;
 };
 
-function StoryViewerHeader({ story, count, index, progress, paused, onTogglePause, onClose }: StoryViewerHeaderProps) {
+function StoryViewerHeader({ story, count, index, progress, paused, onTogglePause, onClose, onOptions }: StoryViewerHeaderProps) {
   const author = story.author;
   const name = author?.username || author?.name || 'Story';
   const time = relativeTime(story.created_at);
@@ -35,6 +36,11 @@ function StoryViewerHeader({ story, count, index, progress, paused, onTogglePaus
         <Pressable onPress={onTogglePause} hitSlop={8} accessibilityRole="button" accessibilityLabel={paused ? 'Resume story' : 'Pause story'} style={styles.button}>
           <HugeiconsIcon icon={paused ? PlayIcon : PauseIcon} size={22} color="white" />
         </Pressable>
+        {onOptions ? (
+          <Pressable onPress={onOptions} hitSlop={8} accessibilityRole="button" accessibilityLabel="Story options" style={styles.button}>
+            <HugeiconsIcon icon={MoreHorizontalIcon} size={22} color="white" />
+          </Pressable>
+        ) : null}
         <Pressable onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close stories" style={styles.button}>
           <HugeiconsIcon icon={Cancel01Icon} size={24} color="white" />
         </Pressable>
