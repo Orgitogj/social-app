@@ -248,3 +248,18 @@ export async function fetchStory(storyId: string): Promise<ServiceResult<Story |
   if (error) return resultFromError(error);
   return { success: true, data: data ? parseStory(data) : null };
 }
+
+export async function fetchStoryMute(userId: string): Promise<ServiceResult<boolean>> {
+  const user = uuidSchema.safeParse(userId);
+  if (!user.success) return resultFromError(user.error);
+  const { data, error } = await supabase.from('mutes').select('stories').eq('muted_id', user.data).maybeSingle();
+  if (error) return resultFromError(error);
+  return { success: true, data: data?.stories === true };
+}
+
+export async function setStoryMute(userId: string, muted: boolean): Promise<ServiceResult<boolean>> {
+  const user = uuidSchema.safeParse(userId);
+  if (!user.success) return resultFromError(user.error);
+  const { data, error } = await supabase.rpc('set_story_mute', { p_user_id: user.data, p_muted: muted });
+  return error ? resultFromError(error) : { success: true, data: data === true };
+}
