@@ -1162,6 +1162,11 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_storage_cleanup: { Args: { p_limit?: number }; Returns: { path: string }[] }
+      complete_storage_cleanup: {
+        Args: { p_error?: string; p_failed?: string[]; p_removed: string[] }
+        Returns: undefined
+      }
       create_post: {
         Args: {
           p_body: string
