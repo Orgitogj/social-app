@@ -89,6 +89,7 @@ export function storyRingState(item?: Pick<StoryTrayItem, 'story_count' | 'unvie
 
 export function compareStoryTrayItems(a: StoryTrayItem, b: StoryTrayItem): number {
   if (a.is_own !== b.is_own) return a.is_own ? -1 : 1;
+  if (Boolean(a.muted) !== Boolean(b.muted)) return a.muted ? 1 : -1;
   const aUnviewed = a.unviewed_count > 0;
   const bUnviewed = b.unviewed_count > 0;
   if (aUnviewed !== bUnviewed) return aUnviewed ? -1 : 1;
