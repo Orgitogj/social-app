@@ -80,3 +80,25 @@ language sql stable security invoker set search_path = '' as $$
   order by s.author_id = auth.uid() desc, s.muted, s.unviewed_count > 0 desc, s.latest_story_at desc, s.author_id
   limit greatest(1, least(coalesce(p_limit, 50), 100));
 $$;
+
+create or replace function private.index_story_mentions() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare token text; target uuid;
+begin
+  if tg_op = 'UPDATE' then
+    if new.caption is not distinct from old.caption then return new; end if;
+    delete from public.story_mentions where story_id = new.id;
+  end if;
+  for token in select private.extract_mentions(new.caption) loop
+    select id into target from public.users where username = token;
+    if target is not null and target <> new.author_id and not private.blocked(new.author_id, target) then
+      insert into public.story_mentions(story_id, user_id) values (new.id, target) on conflict do nothing;
+      if private.story_visible_to(new.id, target)
+        and not exists(select 1 from public.mutes where "userId" = target and muted_id = new.author_id and stories) then
+        perform private.emit_notification(new.author_id, target, 'story_mention', jsonb_build_object('storyId', new.id, 'userId', new.author_id), 'story_mention:' || new.id || ':' || target);
+      end if;
+    end if;
+  end loop;
+  return new;
+end;
+$$;
