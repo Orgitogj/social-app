@@ -8,12 +8,12 @@ import { wp, hp } from '@/helpers/common'
 import { theme } from '@/constants/theme'
 import Icon from '../../assets/icons'
 import { supabase } from '@/lib/supabase'
-import Avatar from '@/components/Avatar'
 import { fetchPosts } from '@/services/postService'
 import { getUserData } from '@/services/userService'
 import { startConversation } from '@/services/chatService'
 import { unregisterPushToken } from '@/services/pushService'
 import PostCard from '@/components/PostCard'
+import ProfileStoryAvatar from '@/components/stories/ProfileStoryAvatar'
 import Loading from '@/components/Loading'
 
 const PAGE_SIZE = 4;
@@ -277,10 +277,13 @@ const UserHeader = ({ user, router, handleLogout, isOwnProfile }: UserHeaderProp
       <View style={styles.container}>
         <View style={{ gap: 20 }}>
           <View style={styles.avatarContainer}>
-            <Avatar
-              uri={user?.image}
+            <ProfileStoryAvatar
+              userId={user?.id}
+              name={user?.name}
+              image={user?.image}
               size={hp(12)}
               rounded={theme.radius.xxl * 1.4}
+              own={isOwnProfile}
             />
 
             {isOwnProfile && (
