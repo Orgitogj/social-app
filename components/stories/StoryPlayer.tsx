@@ -29,6 +29,11 @@ export function shouldRefreshMedia(lastRefreshAt: number | null, now = Date.now(
   return lastRefreshAt === null || now - lastRefreshAt > MEDIA_REFRESH_INTERVAL_MS;
 }
 
+export function selectPlaybackUrl(active: string | null, candidate: string | null, refreshRequested: boolean) {
+  if (!candidate) return active;
+  return active === null || refreshRequested ? candidate : active;
+}
+
 export function isTransientMediaError(error: unknown) {
   return error instanceof AppError && error.retryable;
 }
@@ -38,7 +43,17 @@ function StoryPlayer({ story, paused, progress, onViewed, onComplete, onUnavaila
   const media = useStoryMediaUrl(story.media_path, story.expires_at);
   const lastRefreshAt = useRef<number | null>(null);
   const [resumeAt, setResumeAt] = useState(0);
+  const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
+  const [refreshRequested, setRefreshRequested] = useState(false);
   const transient = media.isError && isTransientMediaError(media.error);
+  const candidateUrl = media.data && !(media.isStale && media.isFetching) ? media.data : null;
+
+  useEffect(() => {
+    const next = selectPlaybackUrl(playbackUrl, candidateUrl, refreshRequested && candidateUrl !== playbackUrl);
+    if (next === playbackUrl) return;
+    setPlaybackUrl(next);
+    setRefreshRequested(false);
+  }, [candidateUrl, playbackUrl, refreshRequested]);
 
   useEffect(() => {
     if (media.isError && !transient) onUnavailable();
@@ -51,6 +66,7 @@ function StoryPlayer({ story, paused, progress, onViewed, onComplete, onUnavaila
     }
     lastRefreshAt.current = Date.now();
     setResumeAt(position);
+    setRefreshRequested(true);
     void client.invalidateQueries({ queryKey: storyKeys.media(story.media_path), exact: true });
   }, [client, onUnavailable, story.media_path]);
 
@@ -65,7 +81,7 @@ function StoryPlayer({ story, paused, progress, onViewed, onComplete, onUnavaila
       </View>
     );
   }
-  if (!media.data) {
+  if (!playbackUrl) {
     return (
       <View style={styles.center}>
         <ActivityIndicator color="white" size="large" accessibilityLabel="Loading story" />
@@ -73,7 +89,7 @@ function StoryPlayer({ story, paused, progress, onViewed, onComplete, onUnavaila
     );
   }
   const Player = story.media_type === 'video' ? StoryVideo : StoryImage;
-  return <Player key={media.data} story={story} url={media.data} startAt={resumeAt} paused={paused} progress={progress} description={storyDescription(story)} onViewed={onViewed} onComplete={onComplete} onMediaError={onMediaError} />;
+  return <Player key={playbackUrl} story={story} url={playbackUrl} startAt={resumeAt} paused={paused} progress={progress} description={storyDescription(story)} onViewed={onViewed} onComplete={onComplete} onMediaError={onMediaError} />;
 }
 
 export default memo(StoryPlayer);
