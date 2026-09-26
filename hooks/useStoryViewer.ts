@@ -5,15 +5,27 @@ import { nextExpiryDelay, nextStep, playableStories, previousStep, resolveStoryI
 import { authorStoriesQuery, storyKeys, storyMediaQuery, useAuthorStories } from '@/hooks/useStories';
 import type { StoryTrayItem } from '@/types/domain';
 
-export function viewerAuthors(tray: readonly StoryTrayItem[] | undefined, initialAuthorId: string): string[] {
+export type StoryViewerScope = 'tray' | 'author';
+export type StoryViewerOptions = { scope?: StoryViewerScope; initialStoryId?: string | null };
+export type InitialStoryState = 'pending' | 'shown' | 'missing';
+
+export function viewerAuthors(tray: readonly StoryTrayItem[] | undefined, initialAuthorId: string, scope: StoryViewerScope = 'tray'): string[] {
+  if (scope === 'author') return [initialAuthorId];
   const ids = (tray ?? []).map(item => item.author.id);
   return ids.includes(initialAuthorId) ? ids : [initialAuthorId];
 }
 
-export function useStoryViewer(initialAuthorId: string) {
+export function initialStoryState(current: InitialStoryState, loaded: boolean, found: boolean): InitialStoryState {
+  if (current !== 'pending' || !loaded) return current;
+  return found ? 'shown' : 'missing';
+}
+
+export function useStoryViewer(initialAuthorId: string, options: StoryViewerOptions = {}) {
   const client = useQueryClient();
-  const [authors] = useState(() => viewerAuthors(client.getQueryData<StoryTrayItem[]>(storyKeys.tray()), initialAuthorId));
-  const [cursor, setCursor] = useState<StoryCursor>(() => startCursor(Math.max(0, authors.indexOf(initialAuthorId))));
+  const initialStoryId = options.initialStoryId ?? null;
+  const [authors] = useState(() => viewerAuthors(client.getQueryData<StoryTrayItem[]>(storyKeys.tray()), initialAuthorId, options.scope));
+  const [cursor, setCursor] = useState<StoryCursor>(() => ({ ...startCursor(Math.max(0, authors.indexOf(initialAuthorId))), storyId: initialStoryId }));
+  const [initialState, setInitialState] = useState<InitialStoryState>(initialStoryId ? 'pending' : 'shown');
   const [unavailable, setUnavailable] = useState<ReadonlySet<string>>(() => new Set());
   const [clock, setClock] = useState(() => Date.now());
   const [restartKey, setRestartKey] = useState(0);
@@ -21,7 +33,8 @@ export function useStoryViewer(initialAuthorId: string) {
   const authorId = authors[cursor.authorIndex];
   const query = useAuthorStories(authorId);
   const stories = useMemo(() => playableStories(query.data, unavailable, clock), [clock, query.data, unavailable]);
-  const index = resolveStoryIndex(stories, cursor);
+  const initialFound = Boolean(initialStoryId && stories.some(item => item.id === initialStoryId));
+  const index = initialState === 'missing' || (initialState === 'pending' && !initialFound) ? null : resolveStoryIndex(stories, cursor);
   const story = index === null ? null : stories[index];
 
   const apply = useCallback((step: StoryStep) => {
@@ -35,8 +48,12 @@ export function useStoryViewer(initialAuthorId: string) {
   }, [cursor.storyId, cursor.storyIndex, index, story]);
 
   useEffect(() => {
-    if (query.isSuccess && index === null) apply(nextStep(cursor, stories, null, authors.length));
-  }, [apply, authors.length, cursor, index, query.isSuccess, stories]);
+    setInitialState(current => initialStoryState(current, query.isSuccess, initialFound));
+  }, [initialFound, query.isSuccess]);
+
+  useEffect(() => {
+    if (initialState === 'shown' && query.isSuccess && index === null) apply(nextStep(cursor, stories, null, authors.length));
+  }, [apply, authors.length, cursor, index, initialState, query.isSuccess, stories]);
 
   useEffect(() => {
     const delay = nextExpiryDelay(query.data ?? [], clock);
@@ -79,6 +96,7 @@ export function useStoryViewer(initialAuthorId: string) {
     count: stories.length,
     restartKey,
     closed,
+    storyMissing: initialState === 'missing',
     isLoading: query.isPending,
     isError: query.isError && !query.data,
     retry: query.refetch,
