@@ -1185,6 +1185,7 @@ export type Database = {
       get_conversation: { Args: { p_conversation_id: string }; Returns: Json }
       get_message: { Args: { p_message_id: string }; Returns: Json }
       get_active_stories: { Args: { p_author_id: string }; Returns: Json[] }
+      get_story: { Args: { p_story_id: string }; Returns: Json }
       get_story_tray: { Args: { p_limit?: number }; Returns: Json[] }
       get_story_viewers: {
         Args: { p_before_id?: string; p_before_time?: string; p_limit?: number; p_story_id: string }
