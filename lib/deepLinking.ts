@@ -12,10 +12,11 @@ const destinationSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('notifications') }),
 ]);
 const notificationPayloadSchema = z.object({
-  type: z.enum(['message', 'like', 'comment', 'reply', 'mention', 'follow', 'follow_request', 'follow_accepted']).optional(),
+  type: z.enum(['message', 'like', 'comment', 'reply', 'mention', 'story_mention', 'follow', 'follow_request', 'follow_accepted']).optional(),
   conversationId: uuidSchema.optional(),
   postId: uuidSchema.optional(),
   userId: uuidSchema.optional(),
+  storyId: uuidSchema.optional(),
 }).passthrough();
 
 export type AppDestination = z.infer<typeof destinationSchema>;
@@ -26,6 +27,7 @@ export function destinationFromNotification(data: unknown): AppDestination | nul
   const payload = parsed.data;
   if (payload.type === 'message' && payload.conversationId) return { kind: 'chat', conversationId: payload.conversationId };
   if (['like', 'comment', 'reply', 'mention'].includes(payload.type ?? '') && payload.postId) return { kind: 'post', postId: payload.postId };
+  if (payload.type === 'story_mention' && payload.storyId) return { kind: 'story', storyId: payload.storyId };
   if (['follow', 'follow_request', 'follow_accepted'].includes(payload.type ?? '') && payload.userId) return { kind: 'profile', userId: payload.userId };
   return null;
 }
