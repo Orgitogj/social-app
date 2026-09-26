@@ -1,7 +1,7 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useInfiniteQuery, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { STORY_SIGNED_URL_TTL_SECONDS, markStoryViewed, markTrayStoryViewed, orderStoryTray } from '@/helpers/stories';
+import { STORY_SIGNED_URL_TTL_SECONDS, markStoryViewed, markTrayStoryViewed, nextTrayExpiry, orderStoryTray } from '@/helpers/stories';
 import { fetchActiveStories, fetchStory, fetchStoryTray, fetchStoryViewers, getStoryMediaUrl, recordStoryView } from '@/services/storyService';
 import { fetchCloseFriends } from '@/services/closeFriendsService';
 import type { Story, StoryTrayItem } from '@/types/domain';
@@ -52,7 +52,13 @@ export function useStoryTray(userId?: string) {
       return orderStoryTray(result.data);
     },
   });
-  const { refetch, dataUpdatedAt, isFetching } = query;
+  const { refetch, dataUpdatedAt, isFetching, data } = query;
+  useEffect(() => {
+    const delay = nextTrayExpiry(data);
+    if (delay === null) return;
+    const timeout = setTimeout(() => { void refetch(); }, delay);
+    return () => clearTimeout(timeout);
+  }, [data, refetch]);
   useFocusEffect(useCallback(() => {
     if (userId && !isFetching && dataUpdatedAt > 0 && Date.now() - dataUpdatedAt > STORY_STALE_TIME) void refetch();
   }, [dataUpdatedAt, isFetching, refetch, userId]));

@@ -121,3 +121,12 @@ export function fitWithin(width: number, height: number, maxDimension: number) {
   const scale = Math.min(1, maxDimension / Math.max(width, height));
   return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
 }
+
+export function nextTrayExpiry(items: readonly Pick<StoryTrayItem, 'next_expires_at'>[] | undefined, now = Date.now()): number | null {
+  let soonest: number | null = null;
+  for (const item of items ?? []) {
+    const remaining = item.next_expires_at ? new Date(item.next_expires_at).getTime() - now : NaN;
+    if (Number.isFinite(remaining) && remaining > 0 && (soonest === null || remaining < soonest)) soonest = remaining;
+  }
+  return soonest === null ? null : Math.min(soonest + 1000, 2_147_483_647);
+}
