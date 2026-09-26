@@ -2,7 +2,7 @@ import { useCallback, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useInfiniteQuery, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { STORY_SIGNED_URL_TTL_SECONDS, markStoryViewed, markTrayStoryViewed, orderStoryTray } from '@/helpers/stories';
-import { fetchActiveStories, fetchStoryTray, fetchStoryViewers, getStoryMediaUrl, recordStoryView } from '@/services/storyService';
+import { fetchActiveStories, fetchStory, fetchStoryTray, fetchStoryViewers, getStoryMediaUrl, recordStoryView } from '@/services/storyService';
 import { fetchCloseFriends } from '@/services/closeFriendsService';
 import type { Story, StoryTrayItem } from '@/types/domain';
 import { AppError } from '@/types/result';
@@ -16,6 +16,7 @@ export const storyKeys = {
   media: (path: string) => ['stories', 'media', path] as const,
   closeFriendsAvailable: () => ['stories', 'closeFriendsAvailable'] as const,
   viewers: (storyId: string) => ['stories', 'viewers', storyId] as const,
+  story: (storyId: string) => ['stories', 'story', storyId] as const,
 };
 
 export const authorStoriesQuery = (authorId: string) => ({
@@ -121,5 +122,19 @@ export function useStoryViewers(storyId: string | undefined, enabled: boolean) {
       return result.data;
     },
     getNextPageParam: page => page.nextCursor,
+  });
+}
+
+export function useStory(storyId: string | undefined) {
+  return useQuery({
+    queryKey: storyKeys.story(storyId ?? 'missing'),
+    enabled: Boolean(storyId),
+    staleTime: 0,
+    retry: false,
+    queryFn: async (): Promise<Story | null> => {
+      const result = await fetchStory(storyId ?? '');
+      if (!result.success) throw new AppError(result.error.code, result.error.retryable);
+      return result.data;
+    },
   });
 }

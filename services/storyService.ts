@@ -240,3 +240,11 @@ export async function createStory(userId: string, storyId: string, draft: StoryD
   if (!published.error.retryable) await discardStoryUploads(userId, storyId, mime.data);
   return { success: false, error: storyErrorFromService(published.error, 'publishFailed'), retryable: published.error.retryable };
 }
+
+export async function fetchStory(storyId: string): Promise<ServiceResult<Story | null>> {
+  const story = uuidSchema.safeParse(storyId);
+  if (!story.success) return { success: true, data: null };
+  const { data, error } = await supabase.rpc('get_story', { p_story_id: story.data });
+  if (error) return resultFromError(error);
+  return { success: true, data: data ? parseStory(data) : null };
+}
