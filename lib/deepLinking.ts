@@ -8,6 +8,7 @@ const destinationSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('profile'), userId: uuidSchema }),
   z.object({ kind: z.literal('post'), postId: uuidSchema }),
   z.object({ kind: z.literal('chat'), conversationId: uuidSchema }),
+  z.object({ kind: z.literal('story'), storyId: uuidSchema }),
   z.object({ kind: z.literal('notifications') }),
 ]);
 const notificationPayloadSchema = z.object({
@@ -43,6 +44,7 @@ export function destinationFromUrl(url: string): AppDestination | null {
   if (kind === 'profile') return { kind: 'profile', userId: parsedId.data };
   if (kind === 'post') return { kind: 'post', postId: parsedId.data };
   if (kind === 'chat') return { kind: 'chat', conversationId: parsedId.data };
+  if (kind === 'story') return { kind: 'story', storyId: parsedId.data };
   return null;
 }
 
@@ -50,6 +52,7 @@ export function destinationHref(destination: AppDestination): Href {
   if (destination.kind === 'profile') return { pathname: '/main/profile', params: { userId: destination.userId } } as Href;
   if (destination.kind === 'post') return { pathname: '/main/postDetails', params: { postId: destination.postId } } as Href;
   if (destination.kind === 'chat') return { pathname: '/main/chat', params: { conversationId: destination.conversationId } } as Href;
+  if (destination.kind === 'story') return { pathname: '/main/storyViewer', params: { storyId: destination.storyId } } as Href;
   return '/main/notifications' as Href;
 }
 
