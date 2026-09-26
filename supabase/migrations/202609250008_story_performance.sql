@@ -57,3 +57,43 @@ language sql stable security invoker set search_path = '' as $$
   order by s.author_id = me.id desc, s.muted, s.unviewed_count > 0 desc, s.latest_story_at desc, s.author_id
   limit greatest(1, least(coalesce(p_limit, 50), 100));
 $$;
+
+create table private.cleanup_cursors (
+  name text primary key,
+  position text not null default '',
+  updated_at timestamptz not null default now()
+);
+
+drop function private.queue_orphan_story_media(integer);
+
+create function private.queue_orphan_story_media(p_scan integer default 25000) returns integer
+language plpgsql security definer set search_path = '' as $$
+declare start_after text; scan_size integer := greatest(100, least(coalesce(p_scan, 25000), 50000)); scanned integer; last_name text; queued integer;
+begin
+  insert into private.cleanup_cursors(name) values ('orphan_story_media') on conflict do nothing;
+  select position into start_after from private.cleanup_cursors where name = 'orphan_story_media' for update;
+  with scanned_objects as materialized (
+    select o.name, o.created_at from storage.objects o
+    where o.bucket_id = 'uploads' and o.name > start_after
+    order by o.bucket_id, o.name
+    limit scan_size
+  ), inserted as (
+    insert into private.storage_cleanup(path)
+    select c.name from scanned_objects c
+    where c.name ~ '^[0-9a-f-]{36}/stories/[0-9a-f-]{36}/(media|thumbnail)\.[a-z0-9]+$'
+      and c.created_at < now() - interval '24 hours'
+      and not exists(select 1 from public.stories s where s.media_path = c.name)
+      and not exists(select 1 from public.stories s where s.thumbnail_path = c.name)
+    on conflict do nothing
+    returning 1
+  )
+  select (select count(*) from scanned_objects), (select max(name) from scanned_objects), (select count(*) from inserted)
+  into scanned, last_name, queued;
+  update private.cleanup_cursors
+  set position = case when scanned < scan_size then '' else coalesce(last_name, '') end, updated_at = now()
+  where name = 'orphan_story_media';
+  return queued;
+end;
+$$;
+
+revoke execute on function private.queue_orphan_story_media(integer) from public, anon, authenticated;
