@@ -543,18 +543,24 @@ export type Database = {
           created_at: string
           id: string
           muted_id: string
+          posts: boolean
+          stories: boolean
           userId: string
         }
         Insert: {
           created_at?: string
           id?: string
           muted_id: string
+          posts?: boolean
+          stories?: boolean
           userId: string
         }
         Update: {
           created_at?: string
           id?: string
           muted_id?: string
+          posts?: boolean
+          stories?: boolean
           userId?: string
         }
         Relationships: [
