@@ -27,14 +27,14 @@ const StoryBarItem = memo(function StoryBarItem({ profile, item, own, onOpen, on
   const unviewed = !own && (item?.unviewed_count ?? 0) > 0;
   const description = own
     ? item ? 'Your story, view your active stories' : 'Your story, add a story'
-    : `${profile.name}, ${unviewed ? 'new story' : 'story viewed'}${item?.has_close_friends ? ', close friends' : ''}`;
+    : `${profile.name}, ${unviewed ? 'new story' : 'story viewed'}${item?.has_close_friends ? ', close friends' : ''}${item?.muted ? ', muted' : ''}`;
   return (
     <View style={styles.item}>
       <Pressable
         onPress={() => onOpen(profile.id, Boolean(item))}
         accessibilityRole="button"
         accessibilityLabel={description}
-        style={({ pressed }) => [styles.pressable, pressed && styles.pressed]}
+        style={({ pressed }) => [styles.pressable, item?.muted && styles.muted, pressed && styles.pressed]}
       >
         <StoryAvatar uri={profile.image} size={AVATAR_SIZE} state={state} closeFriends={item?.has_close_friends} onAddPress={own ? onAdd : undefined} />
         <Text style={[styles.label, unviewed && styles.labelUnviewed]} numberOfLines={1}>{label}</Text>
@@ -106,6 +106,9 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.7,
+  },
+  muted: {
+    opacity: 0.5,
   },
   label: {
     maxWidth: ITEM_WIDTH - 8,
