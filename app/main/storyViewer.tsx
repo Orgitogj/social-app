@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, ActivityIndicator, Animated, AppState, KeyboardAvoidingView, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Alert, Animated, AppState, KeyboardAvoidingView, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -17,7 +17,7 @@ import StoryViewerHeader from '@/components/stories/StoryViewerHeader';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContexts';
 import { uuidSchema } from '@/helpers/validation';
-import { refreshStoryTray, storyKeys, useMarkStoryViewed, useStory } from '@/hooks/useStories';
+import { refreshStoryTray, storyKeys, useMarkStoryViewed, useStory, useStoryMute } from '@/hooks/useStories';
 import { useStoryInteraction } from '@/hooks/useStoryInteraction';
 import { useStoryViewer, type StoryViewerScope } from '@/hooks/useStoryViewer';
 
@@ -64,11 +64,29 @@ function StoryViewer({ authorId, scope, initialStoryId, onClose }: StoryViewerPr
   const [appActive, setAppActive] = useState(() => AppState.currentState !== 'background');
   const [viewersOpen, setViewersOpen] = useState(false);
   const [replyFocused, setReplyFocused] = useState(false);
-  const paused = holding || manualPause || !focused || !appActive || viewersOpen || replyFocused;
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const paused = holding || manualPause || !focused || !appActive || viewersOpen || replyFocused || optionsOpen;
   const { story, markUnavailable, revalidate } = viewer;
   const own = Boolean(story && user && story.author_id === user.id);
   const interaction = useStoryInteraction(story && !own ? story.id : undefined);
   const { reset: resetInteraction } = interaction;
+  const authorMute = useStoryMute(story && !own ? story.author_id : undefined, false);
+
+  const openOptions = useCallback(async () => {
+    if (!story || own) return;
+    const done = () => setOptionsOpen(false);
+    setOptionsOpen(true);
+    const muted = await authorMute.load().catch(() => null);
+    if (muted === null) {
+      done();
+      Alert.alert(story.author?.name ?? 'Story', 'Story options are unavailable right now.');
+      return;
+    }
+    Alert.alert(story.author?.name ?? 'Story', undefined, [
+      { text: muted ? 'Unmute stories' : 'Mute stories', onPress: () => { void authorMute.setMuted(!muted); done(); } },
+      { text: 'Cancel', style: 'cancel', onPress: done },
+    ], { cancelable: true, onDismiss: done });
+  }, [authorMute, own, story]);
 
   useEffect(() => { resetInteraction(); }, [resetInteraction, story?.id]);
 
@@ -191,7 +209,7 @@ function StoryViewer({ authorId, scope, initialStoryId, onClose }: StoryViewerPr
       ) : null}
       {story && viewer.index !== null ? (
         <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-          <StoryViewerHeader story={story} count={viewer.count} index={viewer.index} progress={progress} paused={paused} onTogglePause={togglePause} onClose={onClose} />
+          <StoryViewerHeader story={story} count={viewer.count} index={viewer.index} progress={progress} paused={paused} onTogglePause={togglePause} onClose={onClose} onOptions={own ? undefined : () => { void openOptions(); }} />
         </View>
       ) : (
         <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Close stories" style={[styles.fallbackClose, { top: insets.top + 8 }]}>
