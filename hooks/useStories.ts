@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useInfiniteQuery, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { STORY_SIGNED_URL_TTL_SECONDS, markStoryViewed, markTrayStoryViewed, nextTrayExpiry, orderStoryTray } from '@/helpers/stories';
+import { nextExpiryDelay } from '@/helpers/storyViewer';
 import { fetchActiveStories, fetchStory, fetchStoryMute, fetchStoryTray, fetchStoryViewers, getStoryMediaUrl, recordStoryView, setStoryMute } from '@/services/storyService';
 import { fetchCloseFriends } from '@/services/closeFriendsService';
 import type { Story, StoryTrayItem } from '@/types/domain';
@@ -144,6 +145,17 @@ export function useStory(storyId: string | undefined) {
       return result.data;
     },
   });
+}
+
+export function useExpiryClock(stories: readonly Pick<Story, 'expires_at'>[] | undefined) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const delay = nextExpiryDelay(stories ?? [], Date.now());
+    if (delay === null) return;
+    const timeout = setTimeout(() => setNow(Date.now()), delay);
+    return () => clearTimeout(timeout);
+  }, [now, stories]);
+  return now;
 }
 
 export function applyStoryMute(client: QueryClient, userId: string, muted: boolean) {
