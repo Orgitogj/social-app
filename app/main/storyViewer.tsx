@@ -5,7 +5,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
-import StoryPlayer from '@/components/stories/StoryPlayer';
+import StoryPlayer, { isTransientMediaError } from '@/components/stories/StoryPlayer';
+import StoryUnavailable from '@/components/stories/StoryUnavailable';
 import StoryCaption from '@/components/stories/StoryCaption';
 import StoryInteractionStatus from '@/components/stories/StoryInteractionStatus';
 import StoryReactionBar from '@/components/stories/StoryReactionBar';
@@ -16,13 +17,16 @@ import StoryViewerHeader from '@/components/stories/StoryViewerHeader';
 import { theme } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContexts';
 import { uuidSchema } from '@/helpers/validation';
-import { refreshStoryTray, storyKeys, useMarkStoryViewed } from '@/hooks/useStories';
+import { refreshStoryTray, storyKeys, useMarkStoryViewed, useStory } from '@/hooks/useStories';
 import { useStoryInteraction } from '@/hooks/useStoryInteraction';
-import { useStoryViewer } from '@/hooks/useStoryViewer';
+import { useStoryViewer, type StoryViewerScope } from '@/hooks/useStoryViewer';
 
 export default function StoryViewerScreen() {
-  const params = useLocalSearchParams<{ authorId?: string }>();
+  const params = useLocalSearchParams<{ authorId?: string; storyId?: string; scope?: string }>();
   const authorId = uuidSchema.safeParse(params.authorId);
+  const linked = params.storyId !== undefined;
+  const storyId = uuidSchema.safeParse(params.storyId);
+  const scope: StoryViewerScope = params.scope === 'author' ? 'author' : 'tray';
   const router = useRouter();
   const close = useCallback(() => {
     if (router.canGoBack()) router.back();
@@ -30,18 +34,29 @@ export default function StoryViewerScreen() {
   }, [router]);
 
   useEffect(() => {
-    if (!authorId.success) close();
-  }, [authorId.success, close]);
+    if (!linked && !authorId.success) close();
+  }, [authorId.success, close, linked]);
 
-  return authorId.success ? <StoryViewer authorId={authorId.data} onClose={close} /> : <View style={styles.screen} />;
+  if (linked) return storyId.success ? <LinkedStory storyId={storyId.data} onClose={close} /> : <StoryUnavailable onClose={close} />;
+  return authorId.success ? <StoryViewer authorId={authorId.data} scope={scope} onClose={close} /> : <View style={styles.screen} />;
 }
 
-function StoryViewer({ authorId, onClose }: { authorId: string; onClose: () => void }) {
+function LinkedStory({ storyId, onClose }: { storyId: string; onClose: () => void }) {
+  const story = useStory(storyId);
+  if (story.isPending) return <StoryUnavailable onClose={onClose} loading />;
+  if (story.isError) return isTransientMediaError(story.error) ? <StoryUnavailable onClose={onClose} onRetry={() => { void story.refetch(); }} /> : <StoryUnavailable onClose={onClose} />;
+  if (!story.data) return <StoryUnavailable onClose={onClose} />;
+  return <StoryViewer authorId={story.data.author_id} scope="author" initialStoryId={storyId} onClose={onClose} />;
+}
+
+type StoryViewerProps = { authorId: string; scope: StoryViewerScope; initialStoryId?: string; onClose: () => void };
+
+function StoryViewer({ authorId, scope, initialStoryId, onClose }: StoryViewerProps) {
   const { user } = useAuth();
   const client = useQueryClient();
   const insets = useSafeAreaInsets();
   const focused = useIsFocused();
-  const viewer = useStoryViewer(authorId);
+  const viewer = useStoryViewer(authorId, { scope, initialStoryId });
   const markViewed = useMarkStoryViewed(user?.id);
   const [progress] = useState(() => new Animated.Value(0));
   const [holding, setHolding] = useState(false);
@@ -131,6 +146,8 @@ function StoryViewer({ authorId, onClose }: { authorId: string; onClose: () => v
       translateY.setValue(0);
     },
   }));
+
+  if (viewer.storyMissing) return <StoryUnavailable onClose={onClose} />;
 
   return (
     <Animated.View style={[styles.screen, { transform: [{ translateY }] }]} {...panResponder.panHandlers}>
