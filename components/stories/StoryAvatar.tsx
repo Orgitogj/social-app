@@ -10,6 +10,7 @@ type StoryAvatarProps = {
   state: StoryRingState;
   closeFriends?: boolean;
   onAddPress?: () => void;
+  rounded?: number;
 };
 
 const RING_WIDTH = 2.5;
@@ -21,8 +22,8 @@ export function storyRingColor(state: StoryRingState, closeFriends = false) {
   return closeFriends ? theme.colors.closeFriends : theme.colors.primary;
 }
 
-function StoryAvatar({ uri, size = 64, state, closeFriends = false, onAddPress }: StoryAvatarProps) {
-  const rounded = Math.round(size * 0.32);
+function StoryAvatar({ uri, size = 64, state, closeFriends = false, onAddPress, rounded: radius }: StoryAvatarProps) {
+  const rounded = radius ?? Math.round(size * 0.32);
   const outer = size + (RING_WIDTH + RING_GAP) * 2;
   const badge = Math.round(size * 0.34);
   return (
