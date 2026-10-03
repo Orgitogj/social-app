@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import type { RealtimeChannel } from '@supabase/supabase-js';
@@ -121,6 +121,7 @@ export function useConversations(userId?: string) {
 
 export function useUnreadMessageCount(userId?: string) {
   const client = useQueryClient();
+  const instanceId = useId();
   const query = useQuery({
     queryKey: chatKeys.unreadMessages,
     enabled: Boolean(userId),
@@ -133,12 +134,12 @@ export function useUnreadMessageCount(userId?: string) {
   useFocusEffect(useCallback(() => {
     if (!userId) return;
     const channel = supabase
-      .channel(`chat-unread:${userId}`)
+      .channel(`chat-unread:${userId}:${instanceId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => { void client.invalidateQueries({ queryKey: chatKeys.unreadMessages, exact: true }); })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversation_members', filter: `userId=eq.${userId}` }, () => { void client.invalidateQueries({ queryKey: chatKeys.unreadMessages, exact: true }); })
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
-  }, [client, userId]));
+  }, [client, instanceId, userId]));
   return query;
 }
 
