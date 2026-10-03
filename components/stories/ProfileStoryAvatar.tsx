@@ -44,7 +44,7 @@ function ProfileStoryAvatar({ userId, name, image, size, rounded, own }: Profile
       ? action === 'create' ? 'Your photo, add to your story' : 'Your photo, view or add to your story'
       : `${name ?? 'This account'} has ${state === 'unviewed' ? 'a new story' : 'a story'}, view story`;
 
-  const avatar = <StoryAvatar uri={image} size={size} rounded={rounded} state={state} closeFriends={closeFriends} onAddPress={own ? openComposer : undefined} />;
+  const avatar = <StoryAvatar uri={image} size={size} rounded={rounded} state={state} closeFriends={closeFriends} />;
   if (action === 'none') return <View accessible accessibilityRole="image" accessibilityLabel={label}>{avatar}</View>;
   return <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label}>{avatar}</Pressable>;
 }
