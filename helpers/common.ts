@@ -1,4 +1,4 @@
-import { useWindowDimensions } from 'react-native';
+import { Dimensions, useWindowDimensions } from 'react-native';
 import { FilterXSS } from 'xss';
 
 const sanitizer = new FilterXSS({
@@ -12,12 +12,17 @@ export const stripHtmlTags = (html: string) => sanitizeHtml(html).replace(/<[^>]
 
 export function useResponsive() {
   const { width, height, fontScale } = useWindowDimensions();
-  return { width, height, fontScale, wp: (value: number) => Math.min(width, 720) * value / 100, hp: (value: number) => height * value / 100 };
+  return { width, height, fontScale, wp: (value: number) => Math.min(width, MAX_LAYOUT_WIDTH) * value / 100, hp: (value: number) => height * value / 100 };
 }
 
 export const normalizeSearch = (value: string) => value.normalize('NFKC').trim().toLocaleLowerCase().slice(0, 100);
-export const wp = (percentage: number) => percentage;
-export const hp = (percentage: number) => percentage;
+const REFERENCE_WINDOW = { width: 390, height: 844 };
+const MAX_LAYOUT_WIDTH = 720;
+const windowSize = Dimensions.get('window');
+const layoutWidth = Math.min(windowSize.width > 0 ? windowSize.width : REFERENCE_WINDOW.width, MAX_LAYOUT_WIDTH);
+const layoutHeight = windowSize.height > 0 ? windowSize.height : REFERENCE_WINDOW.height;
+export const wp = (percentage: number) => layoutWidth * percentage / 100;
+export const hp = (percentage: number) => layoutHeight * percentage / 100;
 export const extractHashtags = (value: string) => [...new Set([...stripHtmlTags(value).matchAll(/(?:^|[^\p{L}\p{N}_])#([\p{L}\p{N}_]{1,50})/gu)].map(match => match[1].toLocaleLowerCase()))].slice(0, 20);
 export const MENTION_PATTERN = /(?:^|[^\w])@([a-z0-9_]{3,30})/gi;
 export const extractMentions = (value: string) => [...new Set([...stripHtmlTags(value).matchAll(MENTION_PATTERN)].map(match => match[1].toLowerCase()))].slice(0, 20);
